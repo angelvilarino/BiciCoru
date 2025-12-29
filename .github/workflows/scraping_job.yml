@@ -2,8 +2,11 @@ name: Hourly Ocupacion Scraper
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Se ejecuta cada hora en punto (:00)
-  workflow_dispatch:      # Permite ejecutarlo manualmente desde el botón en GitHub
+    # Se ejecuta cada hora en punto, desde las 08:00 hasta las 23:00 (UTC)
+    # OJO: GitHub usa hora UTC. España es UTC+1 (Invierno). 
+    # Para que empiece a las 08:00 hora Coruña, ponemos '7-22'
+    - cron: '0 7-22 * * *'  
+  workflow_dispatch:    # Permite ejecutarlo manualmente desde el botón en GitHub
 
 jobs:
   scrape:
