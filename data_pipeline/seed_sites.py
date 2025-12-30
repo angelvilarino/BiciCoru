@@ -2,12 +2,16 @@ import os
 import requests
 from supabase import create_client
 import time
+import livepopulartimes
 
 # export SUPABASE_URL="https://nkfvkszhrxwbippbntri.supabase.co"
 # export SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rZnZrc3pocnh3YmlwcGJudHJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY2NzE2NzMsImV4cCI6MjA4MjI0NzY3M30.ZW3bzvADK-jgMzSDYhCW65_227UMoJAr1CO_XbhO8Owy"
 
-# Conexión a Supabase
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+URL = "https://nkfvkszhrxwbippbntri.supabase.co"
+KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rZnZrc3pocnh3YmlwcGJudHJpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjY3MTY3MywiZXhwIjoyMDgyMjQ3NjczfQ.GCZ63RK-eQSJdUaoFCD26pCO7qTqzl54A1iYsTvUOuw"
+
+# Conexión
+supabase = create_client(URL, KEY)
 
 BBOX = "43.33,-8.45,43.39,-8.36"
 
@@ -31,37 +35,10 @@ CATEGORIAS = [
 
 SERVERS = [
     "https://lz4.overpass-api.de/api/interpreter",
-    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter"
 ]
 
-def obtener_ids_existentes():
-    """Descarga los osm_id que ya están en la base de datos para saltarlos"""
-    try:
-        res = supabase.table("sitios").select("osm_id").execute()
-        return {str(item['osm_id']) for item in res.data}
-    except Exception as e:
-        print(f"⚠️ Error cargando IDs: {e}")
-        return set()
-
-def limpiar_nombre_comercial(nombre):
-    for sufijo in [" S.L.", " S.A.", " S.L.U.", " S.A.U.", " - A Coruña", " (A Coruña)"]:
-        nombre = nombre.replace(sufijo, "")
-    return nombre.strip()
-
-def estimar_capacidad(metadata, cat_base):
-    for key in ["capacity", "occupancy", "seats"]:
-        if key in metadata:
-            try: return int(metadata[key])
-            except: pass
-    caps = {
-        "supermercado": 150, "centro_comercial": 2500, "grandes_almacenes": 1000,
-        "gimnasio": 120, "polideportivo": 400, "cafeteria": 40, "restaurante": 80,
-        "comida_rapida": 60, "biblioteca": 120, "oficina_correos": 40, "hospital": 600,
-        "gasolinera": 30, "farmacia": 20
-    }
-    return caps.get(cat_base, 50)
-
-def obtener_lugares(tag_query, ids_conocidos):
+def obtener_lugares(tag_query):
     query = f"""
     [out:json][timeout:90];
     (
@@ -71,96 +48,150 @@ def obtener_lugares(tag_query, ids_conocidos):
     );
     out center tags;
     """
+    
     for servidor in SERVERS:
         try:
-            r = requests.post(servidor, data={"data": query}, headers={"User-Agent": "FlowState/1.0"}, timeout=100)
+            r = requests.post(servidor, data={"data": query}, 
+                            headers={"User-Agent": "FlowState/1.0"}, timeout=100)
             r.raise_for_status()
             data = r.json()
             
             lugares = []
-            vistos_locales = {} # Duplicados espaciales en la misma descarga
+            vistos = {}
 
             for el in data.get("elements", []):
-                osm_id = str(el["id"])
-                
-                # --- FILTRO 1: Ya existe en la base de datos ---
-                if osm_id in ids_conocidos:
-                    continue
-                
                 tags = el.get("tags", {})
-                nombre_raw = tags.get("name")
-                if not nombre_raw: continue
+                nombre = tags.get("name")
+                if not nombre: 
+                    continue
                 
                 lat = el.get("lat") or el.get("center", {}).get("lat")
                 lon = el.get("lon") or el.get("center", {}).get("lon")
-                if not lat or not lon: continue
+                if not lat or not lon: 
+                    continue
 
-                nombre_limpio = limpiar_nombre_comercial(nombre_raw)
-                nombre_norm = nombre_limpio.lower()
-
-                # --- FILTRO 2: Duplicado espacial en esta misma búsqueda ---
+                # Detectar duplicados
+                nombre_norm = nombre.lower().strip()
                 es_duplicado = False
-                if nombre_norm in vistos_locales:
-                    for lat_p, lon_p in vistos_locales[nombre_norm]:
-                        dist = ((lat - lat_p)**2 + (lon - lon_p)**2)**0.5 * 111000
-                        if dist < 100:
-                            es_duplicado = True; break
-                if es_duplicado: continue
                 
-                if nombre_norm not in vistos_locales: vistos_locales[nombre_norm] = []
-                vistos_locales[nombre_norm].append((lat, lon))
+                if nombre_norm in vistos:
+                    for lat_prev, lon_prev in vistos[nombre_norm]:
+                        dist = ((lat - lat_prev)**2 + (lon - lon_prev)**2)**0.5 * 111000
+                        if dist < 100:
+                            es_duplicado = True
+                            break
+                
+                if es_duplicado:
+                    continue
+                
+                if nombre_norm not in vistos:
+                    vistos[nombre_norm] = []
+                vistos[nombre_norm].append((lat, lon))
 
-                # --- SCORING ---
+                # Score
                 score = 0
-                tier1 = ["mercadona", "carrefour", "alcampo", "lidl", "eroski", "corte inglés", "marineda", "día", "gadis", "froiz"]
-                if any(m in nombre_norm for m in tier1): score += 250
-                tier2 = ["basic fit", "altafit", "mcfit", "starbucks", "mcdonald", "burger king", "kfc", "telepizza"]
-                if any(m in nombre_norm for m in tier2): score += 150
+                n_lower = nombre.lower()
+                
+                tier1 = ["mercadona", "carrefour", "alcampo", "lidl", "eroski", "corte inglés", "marineda", "día"]
+                if any(m in n_lower for m in tier1): 
+                    score += 200
+                
+                tier2 = ["basic fit", "altafit", "starbucks", "mcdonald", "burger king", "kfc"]
+                if any(m in n_lower for m in tier2): 
+                    score += 100
 
-                if tags.get("brand"): score += 60
-                if tags.get("opening_hours"): score += 40
-                if tags.get("building:levels"): score += 20
+                if tags.get("brand"): score += 50
+                if tags.get("wikidata"): score += 40
+                if tags.get("opening_hours"): score += 30
+                if tags.get("wheelchair"): score += 20
+                if tags.get("website") or tags.get("phone"): score += 15
 
-                # Dirección amigable
-                calle = tags.get('addr:street', '')
-                numero = tags.get('addr:housenumber', '')
-                dir_simple = f"{calle} {numero}, A Coruña".strip(", ")
+                # Dirección completa
+                partes = []
+                if tags.get('addr:street'): 
+                    partes.append(tags['addr:street'])
+                if tags.get('addr:housenumber'): 
+                    partes.append(tags['addr:housenumber'])
+                if tags.get('addr:postcode'): 
+                    partes.append(tags['addr:postcode'])
+                direccion = ", ".join(partes) + ", A Coruña" if partes else "A Coruña"
+
+                # Parsear horario de apertura
+                horario_json = None
+                if tags.get("opening_hours"):
+                    try:
+                        # Simplificar formato de opening_hours
+                        horario_json = {"raw": tags["opening_hours"]}
+                    except:
+                        pass
 
                 lugares.append({
-                    "nombre": nombre_limpio,
-                    "direccion": dir_simple,
-                    "osm_id": int(osm_id),
+                    "nombre": nombre,
+                    "direccion": direccion,
+                    "osm_id": el["id"],
                     "osm_type": el["type"],
                     "latitud": float(lat),
                     "longitud": float(lon),
                     "score": score,
-                    "metadata": tags
+                    "metadata": tags,
+                    "telefono": tags.get("phone") or tags.get("contact:phone"),
+                    "website": tags.get("website") or tags.get("contact:website"),
+                    "horario_apertura": horario_json
                 })
             
             lugares.sort(key=lambda x: x["score"], reverse=True)
             return lugares
+                
         except Exception as e:
-            print(f"    ⚠️ Error {servidor.split('/')[2]}: {str(e)[:40]}")
+            print(f"    ⚠️  {servidor.split('/')[2]}: {str(e)[:40]}")
             time.sleep(2)
+    
     return []
 
-print("\n🚀 CARGA MASIVA INTELIGENTE - A CORUÑA")
-ids_bd = obtener_ids_existentes()
-print(f"ℹ️ Sitios detectados en DB: {len(ids_bd)}")
+def estimar_capacidad(metadata, cat_base):
+    if "capacity" in metadata:
+        try:
+            return int(metadata["capacity"])
+        except:
+            pass
+    
+    caps = {
+        "supermercado": 150, "centro_comercial": 2000, "grandes_almacenes": 800,
+        "gimnasio": 100, "polideportivo": 300, "cafeteria": 50, "restaurante": 80,
+        "comida_rapida": 40, "biblioteca": 120, "oficina_correos": 30, "banco": 40,
+        "farmacia": 20, "hospital": 500, "panaderia": 25, "gasolinera": 20
+    }
+    
+    return caps.get(cat_base, 50)
 
-total_ok = 0
+print("\n🚀 CAPTURA COMPLETA - A Coruña\n")
+
+total = 0
+errores = 0
+
 for i, cat in enumerate(CATEGORIAS, 1):
     print(f"[{i}/{len(CATEGORIAS)}] 📂 {cat['cat'].upper()}")
-    lugares_nuevos = obtener_lugares(cat["tag"], ids_bd)
+    lugares = obtener_lugares(cat["tag"])
     
-    if not lugares_nuevos:
-        print("    ⏭️ Sin sitios nuevos.")
+    if not lugares:
+        print(f"    ⚠️  0 lugares\n")
         continue
-
-    for l in lugares_nuevos:
+    
+    ok = 0
+    actualizados = 0
+    nuevos = 0
+    for l in lugares:
         cap = estimar_capacidad(l["metadata"], cat["cat"])
+        
         try:
-            supabase.table("sitios").insert({
+            # Primero verificar si existe
+            existe = supabase.table("sitios") \
+                .select("id") \
+                .eq("osm_id", l["osm_id"]) \
+                .eq("osm_type", l["osm_type"]) \
+                .execute()
+            
+            datos = {
                 "nombre": l["nombre"],
                 "categoria": cat["cat"],
                 "direccion": l["direccion"],
@@ -169,13 +200,38 @@ for i, cat in enumerate(CATEGORIAS, 1):
                 "latitud": l["latitud"],
                 "longitud": l["longitud"],
                 "capacidad_estimada": cap,
-                "score": l["score"], # Guardamos el score para el buscador
-                "metadata": l["metadata"]
-            }).execute()
-            total_ok += 1
-        except: continue
+                "score": l["score"],
+                "activo": True,
+                "metadata": l["metadata"],
+                "telefono": l.get("telefono"),
+                "website": l.get("website"),
+                "horario_apertura": l.get("horario_apertura")
+            }
+            
+            if existe.data:
+                # Actualizar existente
+                supabase.table("sitios") \
+                    .update(datos) \
+                    .eq("osm_id", l["osm_id"]) \
+                    .eq("osm_type", l["osm_type"]) \
+                    .execute()
+                actualizados += 1
+            else:
+                # Insertar nuevo
+                supabase.table("sitios").insert(datos).execute()
+                nuevos += 1
+            
+            ok += 1
+            total += 1
+        except Exception as e:
+            errores += 1
+            if errores < 3:
+                print(f"      ❌ {l['nombre'][:30]}: {str(e)[:40]}")
     
-    print(f"    ✅ +{len(lugares_nuevos)} nuevos sincronizados.")
-    time.sleep(1)
+    print(f"    ✅ {ok}/{len(lugares)} (nuevos: {nuevos}, actualizados: {actualizados})\n")
+    time.sleep(2)
 
-print(f"\n✨ FINALIZADO. Nuevos sitios añadidos: {total_ok}")
+print(f"{'='*50}")
+print(f"✅ Total: {total}")
+print(f"❌ Errores: {errores}")
+print(f"{'='*50}")

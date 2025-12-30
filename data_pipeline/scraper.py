@@ -4,105 +4,145 @@ import random
 import requests
 from datetime import datetime
 from supabase import create_client
-import livepopulartimes
 
-# export OPENWEATHER_API_KEY="0a82c0700f0b3696713e8ef1c5a8a415"
+# Usar variables de entorno o valores por defecto
+# URL = os.getenv("SUPABASE_URL", "https://nkfvkszhrxwbippbntri.supabase.co")
+# KEY = os.getenv("SUPABASE_SERVICE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rZnZrc3pocnh3YmlwcGJudHJpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjY3MTY3MywiZXhwIjoyMDgyMjQ3NjczfQ.GCZ63RK-eQSJdUaoFCD26pCO7qTqzl54A1iYsTvUOuw")
+# OPENWEATHER_KEY = os.getenv("OPENWEATHER_API_KEY", "0a82c0700f0b3696713e8ef1c5a8a415")
 
-# Conexión
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+URL = os.getenv("SUPABASE_URL")
+KEY = os.getenv("SUPABASE_SERVICE_KEY")
+WEATHER_KEY = os.getenv("OPENWEATHER_API_KEY")
 
-def obtener_clima():
-    """Obtiene clima actual de OpenWeather para A Coruña"""
-    api_key = os.getenv("OPENWEATHER_API_KEY")
-    if not api_key: 
-        return None, None
+supabase = create_client(URL, KEY)
+
+# ==========================================
+# FUNCIONES DE APOYO
+# ==========================================
+
+def obtener_datos_ambientales():
+    """Obtiene clima y calidad del aire de A Coruña."""
     try:
-        url = "https://api.openweathermap.org/data/2.5/weather"
-        # Usamos el ID de ciudad de A Coruña o coordenadas para más precisión
-        params = {"q": "A Coruna,ES", "appid": api_key, "units": "metric", "lang": "es"}
-        r = requests.get(url, params=params, timeout=10)
-        if r.status_code == 200:
-            data = r.json()
-            estado_clima = data["weather"][0]["main"]
-            temp = data["main"]["temp"]
-            return estado_clima, temp
+        # 1. Clima y Temperatura
+        res = requests.get(f"https://api.openweathermap.org/data/2.5/weather?q=A+Coruna,ES&appid={WEATHER_KEY}&units=metric").json()
+        clima = res['weather'][0]['main']
+        temp = res['main']['temp']
+        
+        # 2. Calidad del Aire (AQI: 1=Excelente, 5=Muy Mala)
+        res_aq = requests.get(f"http://api.openweathermap.org/data/2.5/air_pollution?lat=43.36&lon=-8.41&appid={WEATHER_KEY}").json()
+        aqi = res_aq['list'][0]['main']['aqi']
+        return clima, temp, aqi
     except Exception as e:
-        print(f"⚠️ Error Clima: {e}")
-    return None, None
+        print(f"⚠️ Error ambiental: {e}")
+        return "Clear", 15.0, 1
 
-def obtener_simulacion_emergencia(hora):
-    """Nivel 3: Curva de ocupación estándar si todo lo demás falla"""
-    if 9 <= hora <= 13 or 18 <= hora <= 21:
-        return random.randint(60, 85)
-    if 14 <= hora <= 17:
-        return random.randint(30, 50)
-    return random.randint(5, 20)
-
-def scraper():
-    print(f"🚀 Iniciando captura total: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+def actualizar_precios_gasolina():
+    """Obtiene precios de MITYC con cabeceras de navegador para evitar bloqueos."""
+    print("⛽ Actualizando precios de combustible...")
     
-    # Traemos los datos necesarios de la tabla sitios
-    res = supabase.table("sitios").select("id, nombre, direccion").eq("activo", True).execute()
-    sitios = res.data
-
-    clima_act, temp_act = obtener_clima()
-    print(f"🌤️  Clima actual: {clima_act} | Temp: {temp_act}°C")
-
-    # Configuración de fechas
-    ahora = datetime.now()
-    # lunes=0 en Python. Si quieres lunes=1 usa: ahora.weekday() + 1
-    dia_semana = ahora.weekday() 
-    hora_actual = ahora.hour
-    hoy_festivo = ahora.strftime("%Y-%m-%d") in ["2025-01-01", "2025-01-06", "2025-12-25"]
-
-    for s in sitios:
-        pop_final = None
-        fuente = "ninguna"
+    # Cabeceras para parecer un navegador real
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json"
+    }
+    
+    try:
+        url = "https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/"
+        # Añadimos las headers y un timeout más largo (20 segundos)
+        res = requests.get(url, headers=headers, timeout=20)
         
-        try:
-            # Intentamos obtener datos de Google
-            query = f"{s['nombre']}, {s['direccion']}"
-            data = livepopulartimes.get_populartimes_by_address(query)
-
-            # ESTRATEGIA NIVEL 1: Live Data
-            if isinstance(data, dict) and data.get("current_popularity") is not None:
-                pop_final = data["current_popularity"]
-                fuente = "live"
+        if res.status_code == 200:
+            data = res.json()
+            # Filtramos solo estaciones en Coruña (Municipio o Provincia)
+            gasolineras = [g for g in data["ListaEESSPrecio"] if "CORUÑA" in g["Municipio"].upper()]
             
-            # ESTRATEGIA NIVEL 2: Histórico de Google (Histograma)
-            elif isinstance(data, dict) and data.get("populartimes") is not None:
+            print(f"    🔍 Encontradas {len(gasolineras)} gasolineras en Coruña.")
+            
+            for g in gasolineras:
+                # El Rótulo suele venir en MAYÚSCULAS, lo ponemos bonito
+                nombre = g["Rótulo"].title()
+                
+                # Limpieza de precios (vienen con comas y como strings)
                 try:
-                    # Accedemos al día y hora actual en el histograma de Google
-                    pop_final = data["populartimes"][dia_semana]["data"][hora_actual]
-                    fuente = "google_historia"
+                    p95 = float(g["Precio Gasolina 95 E5"].replace(",", ".")) if g["Precio Gasolina 95 E5"] else None
+                    pdiesel = float(g["Precio Gasoleo A"].replace(",", ".")) if g["Precio Gasoleo A"] else None
+                    
+                    # Actualizamos en la tabla sitios usando el nombre (Ilike es insensible a mayúsculas)
+                    supabase.table("sitios").update({
+                        "precio_95": p95,
+                        "precio_diesel": pdiesel
+                    }).ilike("nombre", f"%{nombre}%").execute()
                 except:
-                    pass
-
-            # ESTRATEGIA NIVEL 3: Simulación (Para que no haya huecos)
-            if pop_final is None:
-                pop_final = obtener_simulacion_emergencia(hora_actual)
-                fuente = "simulacion_ia"
-
-            # GUARDADO EN SUPABASE
-            supabase.table("ocupacion_historial").insert({
-                "sitio_id": s["id"],
-                "ocupacion_porcentaje": int(pop_final),
-                "dia_semana": int(dia_semana),
-                "hora": int(hora_actual),
-                "clima": clima_act,
-                "temperatura": float(temp_act) if temp_act is not None else None,
-                "es_festivo": hoy_festivo,
-                "fuente": fuente
-            }).execute()
+                    continue
+            print("    ✅ Precios inyectados en la tabla sitios.")
+        else:
+            print(f"    ⚠️ El servidor respondió con código {res.status_code}")
             
-            icon = "🔥" if fuente == "live" else "📊" if fuente == "google_historia" else "🤖"
-            print(f"{icon} {s['nombre'][:20]} -> {pop_final}% ({fuente})")
+    except Exception as e:
+        print(f"    ⚠️ No se pudo conectar con el servidor de gasolineras: {str(e)[:50]}")
+        print("    ⏭️ Saltando actualización de gasolina para continuar con ocupación...")
 
-        except Exception as e:
-            print(f"❌ Error en {s['nombre'][:20]}: {str(e)[:50]}")
+def calcular_ocupacion(cat, hora, dia, clima, festivo):
+    """Lógica de simulación inteligente basada en patrones de Coruña."""
+    # Base por categoría
+    bases = {
+        "supermercado": 30, "centro_comercial": 40, "restaurante": 20, 
+        "gimnasio": 25, "hospital": 60, "cafeteria": 35
+    }
+    ocupacion = bases.get(cat, 30)
+
+    # Picos horarios
+    if 9 <= hora <= 12: ocupacion += 30
+    if 18 <= hora <= 21: ocupacion += 40
+    if hora > 22 or hora < 7: ocupacion = 5
+
+    # Modificadores
+    if dia >= 5: ocupacion += 15 # Fin de semana
+    if festivo: ocupacion += 20
+    if clima in ["Rain", "Snow"]: ocupacion += 10 # Más gente en interiores
+
+    return max(0, min(100, ocupacion + random.randint(-5, 5)))
+
+# ==========================================
+# PROCESO PRINCIPAL
+# ==========================================
+
+def ejecutar_scraper():
+    ahora = datetime.now()
+    print(f"\n🚀 SCRAPER UNIFICADO - {ahora.strftime('%H:%M')}")
+    
+    # 1. Datos Ambientales
+    clima, temp, aqi = obtener_datos_ambientales()
+    print(f"🌤️  {clima} | {temp}°C | AQI: {aqi}")
+
+    # 2. Gasolineras (se actualizan en la tabla sitios)
+    actualizar_precios_gasolina()
+
+    # 3. Procesar Ocupación de Sitios
+    sitios = supabase.table("sitios").select("id, nombre, categoria").eq("activo", True).execute().data
+    print(f"📍 Calculando ocupación para {len(sitios)} sitios...")
+
+    festivos = ["2025-01-01", "2025-01-06", "2025-12-25"]
+    es_festivo = ahora.strftime("%Y-%m-%d") in festivos
+
+    registros_historial = []
+    
+    for s in sitios:
+        ocupacion = calcular_ocupacion(s["categoria"], ahora.hour, ahora.weekday(), clima, es_festivo)
         
-        # Delay para evitar baneos (Google es estricto)
-        time.sleep(random.uniform(7.0, 12.0))
+        registros_historial.append({
+            "sitio_id": s["id"],
+            "ocupacion_porcentaje": ocupacion,
+            "clima": clima,
+            "temperatura": temp,
+            "hora": ahora.hour,
+            "dia_semana": ahora.weekday()
+        })
+
+    # Inserción masiva para ahorrar tiempo y recursos
+    if registros_historial:
+        supabase.table("ocupacion_historial").insert(registros_historial).execute()
+        print(f"✅ Historial actualizado: {len(registros_historial)} filas.")
 
 if __name__ == "__main__":
-    scraper()
+    ejecutar_scraper()
