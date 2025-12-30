@@ -103,6 +103,61 @@ def calcular_ocupacion(cat, hora, dia, clima, festivo):
 
     return max(0, min(100, ocupacion + random.randint(-5, 5)))
 
+def actualizar_parkings():
+    """Intenta obtener datos reales; si falla, aplica simulación lógica."""
+    print("🅿️  Actualizando parkings municipales...")
+    
+    url = "https://coruna.iplace.es/api/v1/parkings"
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+    
+    try:
+        # Intentamos la conexión con un timeout corto para no frenar el scraper
+        res = requests.get(url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            for p in data:
+                nombre = p.get("name")
+                libres = p.get("free_places")
+                totales = p.get("total_places", 100)
+                
+                supabase.table("parkings").upsert({
+                    "nombre": nombre,
+                    "plazas_libres": int(libres),
+                    "plazas_totales": int(totales),
+                    "updated_at": datetime.now().isoformat()
+                }, on_conflict="nombre").execute()
+            print("    ✅ Parkings actualizados con DATOS REALES.")
+            return
+    except Exception:
+        print("    ⚠️ API iPlace no disponible. Iniciando Simulación de Respaldo...")
+
+    # --- LÓGICA DE SIMULACIÓN (Si la API falla) ---
+    # Obtenemos los parkings que ya tenemos en la tabla para simular sobre ellos
+    parkings_db = supabase.table("parkings").select("nombre, plazas_totales").execute().data
+    
+    hora = datetime.now().hour
+    dia = datetime.now().weekday()
+    
+    for p in parkings_db:
+        totales = p['plazas_totales'] or 100
+        # Simulación: Lleno en horas punta (11-13h y 19-21h)
+        if 10 <= hora <= 14 or 18 <= hora <= 21:
+            # Entre 5% y 15% de plazas libres (Muy lleno)
+            libres = random.randint(int(totales*0.05), int(totales*0.15))
+        elif 0 <= hora <= 7:
+            # Noche: 80% a 95% libre
+            libres = random.randint(int(totales*0.80), int(totales*0.95))
+        else:
+            # Resto del día: 40% a 60% libre
+            libres = random.randint(int(totales*0.40), int(totales*0.60))
+
+        supabase.table("parkings").update({
+            "plazas_libres": libres,
+            "updated_at": datetime.now().isoformat()
+        }).eq("nombre", p['nombre']).execute()
+    
+    print("    🤖 Parkings actualizados con SIMULACIÓN COHERENTE.")
+
 # ==========================================
 # PROCESO PRINCIPAL
 # ==========================================
@@ -117,6 +172,8 @@ def ejecutar_scraper():
 
     # 2. Gasolineras (se actualizan en la tabla sitios)
     actualizar_precios_gasolina()
+
+    actualizar_parkings()
 
     # 3. Procesar Ocupación de Sitios
     sitios = supabase.table("sitios").select("id, nombre, categoria").eq("activo", True).execute().data
