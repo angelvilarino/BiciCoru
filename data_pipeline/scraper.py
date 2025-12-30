@@ -140,9 +140,17 @@ def ejecutar_scraper():
         })
 
     # Inserción masiva para ahorrar tiempo y recursos
+    # Inserción masiva con UPSERT para evitar duplicados
     if registros_historial:
-        supabase.table("ocupacion_historial").insert(registros_historial).execute()
-        print(f"✅ Historial actualizado: {len(registros_historial)} filas.")
+        try:
+            # Usamos upsert indicando que el conflicto se resuelve por sitio, hora y fecha
+            supabase.table("ocupacion_historial").upsert(
+                registros_historial, 
+                on_conflict="sitio_id, hora, timestamp"
+            ).execute()
+            print(f"✅ Historial sincronizado: {len(registros_historial)} filas (sin duplicados).")
+        except Exception as e:
+            print(f"❌ Error al guardar historial: {e}")
 
 if __name__ == "__main__":
     ejecutar_scraper()
