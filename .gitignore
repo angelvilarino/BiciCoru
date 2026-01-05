@@ -1,5 +1,32 @@
+# Python
 __pycache__/
-.env
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
 venv/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# Archivos de entorno (claves secretas)
+.env
+.env.local
+
+# Datos locales
+*.csv
+*.pkl
+*.joblib
+data_engine/data/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema
 .DS_Store
-node_modules/
+Thumbs.db
