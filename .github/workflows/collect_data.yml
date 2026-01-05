@@ -1,0 +1,40 @@
+name: Recolección de Datos Bicicoruña
+
+# Ejecutar cada 15 minutos
+on:
+  schedule:
+    - cron: '*/15 * * * *'  # Cada 15 minutos
+  workflow_dispatch:  # Permite ejecutar manualmente desde GitHub
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout del código
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: 📦 Instalar dependencias
+        run: |
+          pip install -r data_engine/requirements.txt
+      
+      - name: 🚴 Ejecutar collector
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          python data_engine/collector.py
+      
+      - name: ✅ Notificar éxito
+        if: success()
+        run: echo "✅ Datos recolectados exitosamente"
+      
+      - name: ❌ Notificar fallo
+        if: failure()
+        run: echo "❌ Error al recolectar datos"
