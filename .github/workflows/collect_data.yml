@@ -1,10 +1,9 @@
 name: Recolección de Datos Bicicoruña
 
-# Ejecutar cada 15 minutos
 on:
   schedule:
-    - cron: '*/15 * * * *'  # Cada 15 minutos
-  workflow_dispatch:  # Permite ejecutar manualmente desde GitHub
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
 
 jobs:
   collect:
@@ -28,13 +27,6 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
         run: |
           python data_engine/collector.py
-      
-      - name: ✅ Notificar éxito
-        if: success()
-        run: echo "✅ Datos recolectados exitosamente"
-      
-      - name: ❌ Notificar fallo
-        if: failure()
-        run: echo "❌ Error al recolectar datos"
