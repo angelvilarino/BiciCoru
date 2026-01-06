@@ -1,0 +1,73 @@
+/* Reset básico */
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+/* IMPORTANTE: El cuerpo debe ocupar toda la altura */
+body { height: 100vh; width: 100vw; display: flex; overflow: hidden; background-color: #f4f4f4; }
+
+/* Contenedor principal flex: Sidebar izquierda, Mapa derecha */
+.container { display: flex; width: 100%; height: 100%; }
+
+/* --- SIDEBAR --- */
+.sidebar {
+    width: 380px; /* Ancho fijo */
+    height: 100%; /* Altura completa */
+    background: #ffffff;
+    border-right: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    padding: 25px;
+    overflow-y: auto; /* Scroll si no cabe */
+    box-shadow: 4px 0 15px rgba(0,0,0,0.05);
+    z-index: 1000; /* Por encima del mapa */
+}
+
+/* Header y Textos */
+.header { margin-bottom: 20px; border-bottom: 2px solid #f0f0f0; padding-bottom: 15px; }
+.header h2 { color: #1a1a1a; font-size: 1.5rem; }
+#weather-info { color: #666; font-size: 0.9rem; margin-top: 5px; }
+
+/* Tarjetas (KPIs) */
+.kpi-grid { display: flex; gap: 10px; margin-bottom: 20px; }
+.kpi-card { 
+    flex: 1; padding: 15px; border-radius: 8px; text-align: center; color: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.kpi-card span { display: block; font-size: 2rem; font-weight: bold; }
+.kpi-card label { font-size: 0.8rem; text-transform: uppercase; opacity: 0.9; }
+
+/* Colores Semáforo */
+.kpi-card.green { background: #2ecc71; }
+.kpi-card.orange { background: #f39c12; }
+.kpi-card.red { background: #e74c3c; }
+.kpi-card.gray { background: #95a5a6; }
+
+/* Gráficos y Utilidades */
+.chart-wrapper { 
+    margin-bottom: 20px; 
+    background: white; 
+    padding: 10px; 
+    border: 1px solid #eee; 
+    border-radius: 8px;
+    
+    /* --- ESTO ES LO NUEVO QUE ARREGLA EL BUG --- */
+    position: relative;  /* Necesario para que la gráfica respete los límites */
+    height: 250px;       /* Altura fija: ¡Deja de crecer! */
+    width: 100%;         /* Ancho completo */
+}
+.hidden { display: none !important; }
+#intro-msg { text-align: center; color: #999; margin-top: 50px; }
+
+/* --- MAPA (CRUCIAL) --- */
+#map { 
+    flex: 1; /* Ocupa todo el espacio restante */
+    height: 100%; /* Altura completa */
+    width: 100%; 
+    background-color: #e5e5e5; /* Color de fondo por si tarda en cargar */
+}
+
+/* Responsive para móvil */
+@media (max-width: 768px) {
+    .container { flex-direction: column-reverse; } /* Mapa arriba, datos abajo */
+    .sidebar { width: 100%; height: 50%; }
+    #map { height: 50%; }
+}

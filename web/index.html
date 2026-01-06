@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BiciCoruña Smart Dashboard</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <link rel="stylesheet" href="style.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <aside class="sidebar">
+            <div class="header">
+                <h2>🚲 BiciCoruña AI</h2>
+                <div id="weather-info">🌤️ Cargando clima...</div>
+            </div>
+
+            <div id="station-details" class="hidden">
+                <h3 id="st-name">Estación</h3>
+                
+                <div class="kpi-grid">
+                    <div id="card-bikes" class="kpi-card green">
+                        <span id="st-bikes">-</span>
+                        <label>Bicis</label>
+                    </div>
+                    <div class="kpi-card gray">
+                        <span id="st-slots">-</span>
+                        <label>Huecos</label>
+                    </div>
+                </div>
+
+                <div class="chart-wrapper">
+                    <h4>Histórico 24h</h4>
+                    <canvas id="historyChart"></canvas>
+                </div>
+
+                <div class="chart-wrapper">
+                    <h4>Predicción IA</h4>
+                    <canvas id="predictionChart"></canvas>
+                </div>
+            </div>
+            
+            <div id="intro-msg">
+                <p>Haz clic en un punto del mapa para ver estadísticas.</p>
+            </div>
+        </aside>
+
+        <main id="map"></main>
+    </div>
+
+    <script src="logic.js"></script>
+</body>
+</html>
