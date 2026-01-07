@@ -3,58 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BiciCoruña Smart Dashboard</title>
+    <title>BiciCoruña AI Dashboard</title>
     
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
     
     <link rel="stylesheet" href="style.css">
-
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
-
     <div class="container">
         <aside class="sidebar">
             <div class="header">
-                <h2>🚲 BiciCoruña AI</h2>
-                <div id="weather-info">🌤️ Cargando clima...</div>
-            </div>
-
-            <div id="station-details" class="hidden">
-                <h3 id="st-name">Estación</h3>
-                
-                <div class="kpi-grid">
-                    <div id="card-bikes" class="kpi-card green">
-                        <span id="st-bikes">-</span>
-                        <label>Bicis</label>
-                    </div>
-                    <div class="kpi-card gray">
-                        <span id="st-slots">-</span>
-                        <label>Huecos</label>
+                <h1>🚲 BiciCoruña AI</h1>
+                <div class="weather-bar">
+                    <div class="weather-icon" id="weather-icon">☁️</div>
+                    <div class="weather-details">
+                        <strong id="temperature">--°C</strong>
+                        <small id="weather-desc">Cargando clima...</small>
                     </div>
                 </div>
-
-                <div class="chart-wrapper">
-                    <h4>Histórico 24h</h4>
-                    <canvas id="historyChart"></canvas>
-                </div>
-
-                <div class="chart-wrapper">
-                    <h4>Predicción IA</h4>
-                    <canvas id="predictionChart"></canvas>
-                </div>
+                <div class="update-time" id="update-time">Última actualización: --</div>
             </div>
-            
-            <div id="intro-msg">
-                <p>Haz clic en un punto del mapa para ver estadísticas.</p>
+
+            <div class="search-wrapper">
+                <input 
+                    type="text" 
+                    class="search-input" 
+                    id="search-input"
+                    placeholder="🔍 Buscar estación..."
+                    autocomplete="off"
+                >
+            </div>
+
+            <div class="content">
+                <div class="intro-msg" id="intro-msg">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <p>Selecciona una estación en el mapa<br>para ver detalles y predicciones</p>
+                </div>
+
+                <div class="station-details hidden" id="station-details">
+                    <div class="station-header">
+                        <h3 class="station-name" id="station-name">Estación</h3>
+                        <p class="station-meta">
+                            <span id="station-capacity">Capacidad: --</span> • 
+                            <span id="station-status">Estado: --</span>
+                        </p>
+                    </div>
+
+                    <div class="kpi-grid">
+                        <div class="kpi-card green" id="card-bikes">
+                            <span class="value" id="st-bikes">-</span>
+                            <span class="label">Bicis</span>
+                        </div>
+                        <div class="kpi-card gray">
+                            <span class="value" id="st-slots">-</span>
+                            <span class="label">Huecos</span>
+                        </div>
+                    </div>
+
+                    <div class="chart-section">
+                        <h4>📊 Histórico (24 horas)</h4>
+                        <div class="chart-container">
+                            <canvas id="historyChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-section">
+                        <h4>🔮 Tendencia de Uso</h4>
+                        <div class="chart-container">
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
             </div>
         </aside>
 
         <main id="map"></main>
+
+        <div class="map-legend">
+            <h4>Disponibilidad</h4>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #2ecc71;"></div>
+                <span>Alta (5+ bicis)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f39c12;"></div>
+                <span>Media (1-4 bicis)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #e74c3c;"></div>
+                <span>Baja (0 bicis)</span>
+            </div>
+        </div>
     </div>
 
+    <div class="toast" id="toast">
+        <span id="toast-message"></span>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <script src="logic.js"></script>
 </body>
 </html>

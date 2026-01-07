@@ -1,73 +1,329 @@
-/* Reset básico */
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
 
-/* IMPORTANTE: El cuerpo debe ocupar toda la altura */
-body { height: 100vh; width: 100vw; display: flex; overflow: hidden; background-color: #f4f4f4; }
+body {
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    overflow: hidden;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
 
-/* Contenedor principal flex: Sidebar izquierda, Mapa derecha */
-.container { display: flex; width: 100%; height: 100%; }
+.container {
+    display: flex;
+    width: 100%;
+    height: 100%;
+}
 
-/* --- SIDEBAR --- */
+/* === SIDEBAR === */
 .sidebar {
-    width: 380px; /* Ancho fijo */
-    height: 100%; /* Altura completa */
-    background: #ffffff;
-    border-right: 1px solid #ddd;
+    width: 420px;
+    height: 100%;
+    background: white;
     display: flex;
     flex-direction: column;
-    padding: 25px;
-    overflow-y: auto; /* Scroll si no cabe */
-    box-shadow: 4px 0 15px rgba(0,0,0,0.05);
-    z-index: 1000; /* Por encima del mapa */
+    overflow-y: auto;
+    box-shadow: 4px 0 30px rgba(0,0,0,0.15);
+    z-index: 1000;
 }
 
-/* Header y Textos */
-.header { margin-bottom: 20px; border-bottom: 2px solid #f0f0f0; padding-bottom: 15px; }
-.header h2 { color: #1a1a1a; font-size: 1.5rem; }
-#weather-info { color: #666; font-size: 0.9rem; margin-top: 5px; }
-
-/* Tarjetas (KPIs) */
-.kpi-grid { display: flex; gap: 10px; margin-bottom: 20px; }
-.kpi-card { 
-    flex: 1; padding: 15px; border-radius: 8px; text-align: center; color: white;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+.header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 30px 25px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
-.kpi-card span { display: block; font-size: 2rem; font-weight: bold; }
-.kpi-card label { font-size: 0.8rem; text-transform: uppercase; opacity: 0.9; }
 
-/* Colores Semáforo */
-.kpi-card.green { background: #2ecc71; }
-.kpi-card.orange { background: #f39c12; }
-.kpi-card.red { background: #e74c3c; }
-.kpi-card.gray { background: #95a5a6; }
+.header h1 {
+    font-size: 1.8rem;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
 
-/* Gráficos y Utilidades */
-.chart-wrapper { 
-    margin-bottom: 20px; 
-    background: white; 
-    padding: 10px; 
-    border: 1px solid #eee; 
+.weather-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255,255,255,0.15);
+    padding: 12px 15px;
     border-radius: 8px;
-    
-    /* --- ESTO ES LO NUEVO QUE ARREGLA EL BUG --- */
-    position: relative;  /* Necesario para que la gráfica respete los límites */
-    height: 250px;       /* Altura fija: ¡Deja de crecer! */
-    width: 100%;         /* Ancho completo */
-}
-.hidden { display: none !important; }
-#intro-msg { text-align: center; color: #999; margin-top: 50px; }
-
-/* --- MAPA (CRUCIAL) --- */
-#map { 
-    flex: 1; /* Ocupa todo el espacio restante */
-    height: 100%; /* Altura completa */
-    width: 100%; 
-    background-color: #e5e5e5; /* Color de fondo por si tarda en cargar */
+    margin-top: 15px;
+    backdrop-filter: blur(10px);
 }
 
-/* Responsive para móvil */
-@media (max-width: 768px) {
-    .container { flex-direction: column-reverse; } /* Mapa arriba, datos abajo */
-    .sidebar { width: 100%; height: 50%; }
-    #map { height: 50%; }
+.weather-icon {
+    font-size: 2rem;
+}
+
+.weather-details {
+    flex: 1;
+    margin-left: 15px;
+}
+
+.weather-details strong {
+    display: block;
+    font-size: 1.3rem;
+}
+
+.weather-details small {
+    opacity: 0.9;
+}
+
+.update-time {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    margin-top: 8px;
+}
+
+/* === SEARCH BAR === */
+.search-wrapper {
+    padding: 20px 25px;
+    border-bottom: 1px solid #eee;
+    background: #fafafa;
+}
+
+.search-input {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    transition: all 0.3s;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* === CONTENT === */
+.content {
+    padding: 25px;
+}
+
+.intro-msg {
+    text-align: center;
+    padding: 40px 20px;
+    color: #666;
+}
+
+.intro-msg svg {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 20px;
+    opacity: 0.5;
+}
+
+.station-details.hidden {
+    display: none;
+}
+
+.station-header {
+    margin-bottom: 20px;
+}
+
+.station-name {
+    font-size: 1.4rem;
+    color: #1a1a1a;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.station-meta {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+/* === KPI CARDS === */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.kpi-card {
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    color: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transition: transform 0.3s;
+}
+
+.kpi-card:hover {
+    transform: translateY(-5px);
+}
+
+.kpi-card .value {
+    display: block;
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.kpi-card .label {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.95;
+}
+
+.kpi-card.green { background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); }
+.kpi-card.orange { background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); }
+.kpi-card.red { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); }
+.kpi-card.gray { background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%); }
+
+/* === CHART SECTIONS === */
+.chart-section {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.chart-section h4 {
+    color: #333;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.chart-container {
+    position: relative;
+    height: 220px;
+    width: 100%;
+}
+
+/* === LOADING STATE === */
+.loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 50px;
+    color: #666;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #e0e0e0;
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* === MAP === */
+#map {
+    flex: 1;
+    height: 100%;
+    width: 100%;
+}
+
+/* === MAP LEGEND === */
+.map-legend {
+    position: absolute;
+    bottom: 30px;
+    right: 30px;
+    background: white;
+    padding: 15px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    z-index: 1000;
+}
+
+.map-legend h4 {
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+    color: #333;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+}
+
+.legend-item:last-child {
+    margin-bottom: 0;
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    margin-right: 10px;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* === TOAST NOTIFICATIONS === */
+.toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: white;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    z-index: 10000;
+    display: none;
+    animation: slideIn 0.3s;
+}
+
+.toast.show {
+    display: block;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.toast.error {
+    border-left: 4px solid #e74c3c;
+}
+
+.toast.success {
+    border-left: 4px solid #2ecc71;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 968px) {
+    .container {
+        flex-direction: column-reverse;
+    }
+    .sidebar {
+        width: 100%;
+        height: 50%;
+    }
+    #map {
+        height: 50%;
+    }
+    .map-legend {
+        bottom: 10px;
+        right: 10px;
+        font-size: 0.8rem;
+        padding: 10px 15px;
+    }
 }
