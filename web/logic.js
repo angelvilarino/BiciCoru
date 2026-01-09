@@ -253,47 +253,52 @@ async function loadHistoryChart(stationId) {
 
 async function loadTrendChart(stationId) {
     try {
-        const twoDaysAgo = new Date();
-        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+        // 1. Obtenemos la hora actual en formato ISO
+        const now = new Date().toISOString();
 
+        // 2. Consultamos la tabla 'predicciones' (FUTURO)
         const { data, error } = await client
-            .from('snapshots')
-            .select('timestamp, available_bikes')
+            .from('predicciones')
+            .select('prediction_date, predicted_bikes')
             .eq('station_id', stationId)
-            .gte('timestamp', twoDaysAgo.toISOString())
-            .order('timestamp', { ascending: true });
+            .gte('prediction_date', now) // Solo datos futuros
+            .order('prediction_date', { ascending: true })
+            .limit(24); // Próximas 24 horas
 
         if (error) throw error;
 
-        // Agrupar por hora
-        const hourlyData = {};
-        data.forEach(item => {
-            const hour = new Date(item.timestamp).getHours();
-            if (!hourlyData[hour]) hourlyData[hour] = [];
-            hourlyData[hour].push(item.available_bikes);
+        // Si no hay predicciones (por si acaso), salimos
+        if (!data || data.length === 0) {
+            console.log("No hay predicciones para esta estación");
+            if (trendChart) trendChart.destroy();
+            return;
+        }
+
+        // 3. Formatear datos para la gráfica
+        const labels = data.map(d => {
+            const date = new Date(d.prediction_date);
+            // Formato de hora simple: "18:00"
+            return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
         });
+        
+        const values = data.map(d => d.predicted_bikes);
 
-        const labels = Object.keys(hourlyData).sort((a, b) => a - b)
-            .map(h => `${h}:00`);
-        const values = Object.keys(hourlyData).sort((a, b) => a - b)
-            .map(h => {
-                const bikes = hourlyData[h];
-                return Math.round(bikes.reduce((a, b) => a + b, 0) / bikes.length);
-            });
-
+        // 4. Pintar Gráfica
         if (trendChart) trendChart.destroy();
 
         const ctx = document.getElementById('trendChart').getContext('2d');
         trendChart = new Chart(ctx, {
-            type: 'bar',
+            type: 'bar', // Barras para diferenciarlo del histórico
             data: {
                 labels,
                 datasets: [{
-                    label: 'Promedio por hora',
+                    label: 'Predicción IA (Futuro)',
                     data: values,
+                    // Usamos un color Morado/Violeta para indicar "IA/Futuro"
                     backgroundColor: values.map(v => 
-                        v >= 5 ? '#2ecc71' : 
-                        v > 0 ? '#f39c12' : '#e74c3c'
+                        v >= 5 ? '#9b59b6' :      // Morado fuerte (Alta)
+                        v > 0 ? '#af7ac5' :       // Morado claro (Media)
+                        '#e8daef'                 // Casi blanco (Baja)
                     ),
                     borderRadius: 4
                 }]
@@ -302,18 +307,24 @@ async function loadTrendChart(stationId) {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false }
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => `🤖 Predicción: ${context.raw} bicis`
+                        }
+                    }
                 },
                 scales: {
                     y: { 
                         beginAtZero: true,
-                        max: currentStation.total_capacity
+                        // Usamos la capacidad real de la estación para el tope
+                        max: currentStation.total_capacity 
                     }
                 }
             }
         });
     } catch (error) {
-        console.error('Error cargando tendencia:', error);
+        console.error('Error cargando predicciones:', error);
     }
 }
 
