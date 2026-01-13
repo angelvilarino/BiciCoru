@@ -12,6 +12,7 @@ let stationsData = [];
 let historyChart = null;
 let trendChart = null;
 let currentStation = null;
+let currentFilter = 'all';
 
 // ==========================================
 // UTILIDADES
@@ -62,15 +63,49 @@ function formatDate(timestamp) {
 }
 
 // ==========================================
+// FILTROS
+// ==========================================
+function setupFilters() {
+    const buttons = document.querySelectorAll('.filter-btn');
+    
+    buttons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            // 1. Actualizar estilos visuales (clase active)
+            buttons.forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            
+            // 2. Actualizar la variable lógica
+            currentFilter = e.target.dataset.filter;
+            
+            // 3. Repintar el mapa con el nuevo filtro
+            // Usamos la variable global stationsData que ya tiene los datos cargados
+            if (stationsData.length > 0) {
+                updateMap(stationsData);
+            }
+        });
+    });
+}
+
+// ==========================================
 // INICIALIZACIÓN
 // ==========================================
 async function init() {
     initMap();
+    setupFilters();
     await loadStations();
     setupSearch();
     
     // Auto-refresh cada 5 minutos
     setInterval(loadStations, 300000);
+
+    document.getElementById('btn-geo').addEventListener('click', () => {
+        map.locate({setView: true, maxZoom: 16});
+    });
+
+    map.on('locationfound', (e) => {
+        L.circle(e.latlng, {radius: e.accuracy/2, color: '#667eea'}).addTo(map);
+        showToast("📍 Ubicación encontrada");
+    });
 }
 
 function initMap() {
@@ -110,35 +145,66 @@ async function loadStations() {
 }
 
 function updateMap(stations) {
-    // Limpiar markers antiguos
-    Object.values(markers).forEach(m => map.removeLayer(m));
-    markers = {};
+    try {
+        // 1. Limpiar marcadores
+        Object.values(markers).forEach(m => map.removeLayer(m));
+        markers = {}; 
 
-    stations.forEach(station => {
-        const availability = station.available_bikes / station.total_capacity;
-        let color;
-        
-        if (station.available_bikes >= 5) color = '#2ecc71';
-        else if (station.available_bikes > 0) color = '#f39c12';
-        else color = '#e74c3c';
+        // 2. Contador para depuración (Míralo en la consola F12)
+        let visibleCount = 0;
 
-        const marker = L.circleMarker([station.latitude, station.longitude], {
-            color: '#ffffff',
-            weight: 2,
-            fillColor: color,
-            fillOpacity: 0.9,
-            radius: 10
-        }).addTo(map);
+        stations.forEach(station => {
+            // --- FILTRADO ---
+            
+            // Filtro "Necesito Bici": Ocultar si hay 0 bicis
+            if (currentFilter === 'bikes' && station.available_bikes === 0) return;
+            
+            // Filtro "Necesito Aparcar": Ocultar si hay 0 huecos
+            // NOTA: Si casi todas tienen hueco, parecerá que no hace nada.
+            // Si quieres ser más estricto, cambia 0 por 2 (que haya al menos 2 huecos)
+            if (currentFilter === 'slots' && station.available_slots === 0) return;
+            
+            // ----------------
+            
+            visibleCount++;
 
-        marker.bindPopup(`
-            <strong>${station.name}</strong><br>
-            🚲 ${station.available_bikes} bicis<br>
-            🅿️ ${station.available_slots} huecos
-        `);
+            // 3. Colores
+            let color = '#e74c3c'; // Rojo (Malo/Vacío)
+            
+            // Lógica de color según el filtro activo para ayudar visualmente
+            if (currentFilter === 'slots') {
+                // Si busco hueco, me interesa que esté VERDE si hay muchos huecos
+                if (station.available_slots >= 5) color = '#2ecc71';
+                else if (station.available_slots > 0) color = '#f39c12';
+            } else {
+                // Comportamiento normal (busco bicis)
+                if (station.available_bikes >= 5) color = '#2ecc71';
+                else if (station.available_bikes > 0) color = '#f39c12';
+            }
 
-        marker.on('click', () => loadStationDetails(station));
-        markers[station.station_id] = marker;
-    });
+            const marker = L.circleMarker([station.latitude, station.longitude], {
+                color: '#ffffff',
+                weight: 2,
+                fillColor: color,
+                fillOpacity: 0.9,
+                radius: 10
+            }).addTo(map);
+
+            marker.bindPopup(`
+                <strong>${station.name}</strong><br>
+                🚲 ${station.available_bikes} bicis<br>
+                🅿️ ${station.available_slots} huecos
+            `);
+
+            marker.on('click', () => loadStationDetails(station));
+            markers[station.station_id] = marker;
+        });
+
+        console.log(`Filtro "${currentFilter}" aplicado. Estaciones visibles: ${visibleCount}`);
+
+    } catch (error) {
+        console.error("Error al actualizar mapa:", error);
+    }
 }
 
 function updateWeather(station) {
@@ -199,9 +265,11 @@ async function loadStationDetails(station) {
 
 async function loadHistoryChart(stationId) {
     try {
+        // 1. Calcular fecha de ayer para filtrar
         const yesterday = new Date();
         yesterday.setHours(yesterday.getHours() - 24);
 
+        // 2. Pedir datos a Supabase
         const { data, error } = await client
             .from('snapshots')
             .select('timestamp, available_bikes')
@@ -211,12 +279,25 @@ async function loadHistoryChart(stationId) {
 
         if (error) throw error;
 
+        // 3. Preparar etiquetas y valores
         const labels = data.map(d => formatTime(d.timestamp));
         const values = data.map(d => d.available_bikes);
 
+        // 4. Limpiar gráfica anterior si existe
         if (historyChart) historyChart.destroy();
 
+        // 5. Preparar el Contexto (Lienzo)
         const ctx = document.getElementById('historyChart').getContext('2d');
+
+        // === AQUÍ EMPIEZA LA MAGIA DEL DEGRADADO ===
+        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        // Color de arriba: Azul (#667eea) al 50% de opacidad
+        gradient.addColorStop(0, 'rgba(102, 126, 234, 0.5)');
+        // Color de abajo: Azul al 0% de opacidad (transparente)
+        gradient.addColorStop(1, 'rgba(102, 126, 234, 0.0)');
+        // ===========================================
+
+        // 6. Crear la Gráfica Nueva
         historyChart = new Chart(ctx, {
             type: 'line',
             data: {
@@ -224,25 +305,54 @@ async function loadHistoryChart(stationId) {
                 datasets: [{
                     label: 'Bicis disponibles',
                     data: values,
-                    borderColor: '#667eea',
-                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 2,
-                    pointHoverRadius: 5
+                    borderColor: '#667eea', // Color de la línea sólida
+                    
+                    // Estilos del Área (Degradado)
+                    backgroundColor: gradient, 
+                    fill: true,                // Rellenar área bajo la línea
+                    
+                    // Estilos de los Puntos (Estética App Móvil)
+                    pointBackgroundColor: '#ffffff', // Centro blanco
+                    pointBorderColor: '#667eea',     // Borde azul
+                    pointBorderWidth: 2,
+                    pointRadius: 4,            // Tamaño normal
+                    pointHoverRadius: 7,       // Tamaño al pasar el ratón
+                    
+                    borderWidth: 3,            // Grosor de la línea
+                    tension: 0.4               // Suavizado de curvas (0 = rectas, 0.4 = curvas suaves)
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false }
+                    legend: { display: false }, // Ocultar leyenda (ya sabemos que son bicis)
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        titleColor: '#333',
+                        bodyColor: '#667eea',
+                        borderColor: '#ddd',
+                        borderWidth: 1
+                    }
                 },
                 scales: {
+                    x: {
+                        grid: { display: false } // Ocultar rejilla vertical (más limpio)
+                    },
                     y: { 
                         beginAtZero: true,
-                        max: currentStation.total_capacity
+                        max: currentStation.total_capacity,
+                        grid: {
+                            color: '#f0f0f0' // Rejilla horizontal muy suave
+                        }
                     }
+                },
+                interaction: {
+                    mode: 'nearest',
+                    axis: 'x',
+                    intersect: false
                 }
             }
         });
