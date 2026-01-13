@@ -1,0 +1,39 @@
+name: 🤖 Reentrenar Modelo
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'  # Domingos a las 3 AM UTC (60 min/mes)
+  workflow_dispatch:
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: pip install -r data_engine/requirements.txt
+      
+      - name: Train model
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python data_engine/train_model.py
+      
+      - name: Commit updated model
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          git add data_engine/models_advanced.pkl
+          git commit -m "🤖 Modelo reentrenado automáticamente" || echo "No changes"
+          git push || echo "Nothing to push"
