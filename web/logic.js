@@ -82,6 +82,13 @@ function setupFilters() {
             if (stationsData.length > 0) {
                 updateMap(stationsData);
             }
+
+            // 4. Volver al centro y zoom inicial
+            map.setView([43.366, -8.410], 13);
+
+            // 5. Reiniciar panel lateral
+            document.getElementById('station-details').classList.add('hidden');
+            document.getElementById('intro-msg').classList.remove('hidden');
         });
     });
 }
