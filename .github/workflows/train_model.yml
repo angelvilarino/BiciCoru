@@ -2,13 +2,16 @@ name: 🤖 Reentrenar Modelo
 
 on:
   schedule:
-    - cron: '0 3 * * 0'  # Domingos a las 3 AM UTC (60 min/mes)
-  workflow_dispatch:
+    - cron: '0 3 * * 0'  # Domingos a las 3 AM UTC (Madrugada)
+  workflow_dispatch:      # Botón manual para forzar reentreno
 
 jobs:
   train:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20 # Bajado de 30 a 20 porque V11 es muy rápido
+    
+    permissions:
+      contents: write # IMPORTANTE: Permiso para hacer git push
     
     steps:
       - uses: actions/checkout@v4
@@ -34,6 +37,14 @@ jobs:
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
+          
+          # Añadimos solo el archivo .pkl
           git add data_engine/models_advanced.pkl
-          git commit -m "🤖 Modelo reentrenado automáticamente" || echo "No changes"
-          git push || echo "Nothing to push"
+          
+          # Si no hay cambios (el modelo es idéntico), no fallar
+          git commit -m "🤖 Modelo reentrenado automáticamente" || echo "No changes to commit"
+          
+          # TRUCO PRO: Traer cambios remotos antes de subir para evitar conflictos
+          git pull --rebase origin main
+          
+          git push

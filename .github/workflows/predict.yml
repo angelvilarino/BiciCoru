@@ -2,13 +2,16 @@ name: 🔮 Generar Predicciones
 
 on:
   schedule:
-    - cron: '0 */2 * * *'  # Se ejecuta cada 2 horas
-  workflow_dispatch:      # Permite ejecutarlo manualmente desde GitHub
+    - cron: '0 */2 * * *'  # Se ejecuta cada 2 horas (ej: 14:00, 16:00...)
+  workflow_dispatch:      # Botón manual
 
 jobs:
   predict:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    
+    permissions:
+      contents: read
     
     steps:
       - uses: actions/checkout@v4
@@ -20,6 +23,7 @@ jobs:
           cache: 'pip'
       
       - name: Install dependencies
+        # Esto ahora será rapidísimo sin Darts
         run: pip install -r data_engine/requirements.txt
       
       - name: Generate predictions
@@ -27,6 +31,4 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
-        # ASEGÚRATE DE QUE EL NOMBRE DEL ARCHIVO COINCIDE CON EL QUE TIENES EN TU CARPETA
-        # Si tu archivo se llama predictor.py, usa esta línea:
         run: python data_engine/predictor.py
