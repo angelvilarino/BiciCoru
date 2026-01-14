@@ -1,6 +1,3 @@
-// ==========================================
-// CONFIGURACIÓN
-// ==========================================
 const SUPABASE_URL = 'https://nkfvkszhrxwbippbntri.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rZnZrc3pocnh3YmlwcGJudHJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY2NzE2NzMsImV4cCI6MjA4MjI0NzY3M30.ZW3bzvADK-jgMzSDYhCW65_227UMoJAr1CO_XbhO8Ow';
 
@@ -13,460 +10,381 @@ let historyChart = null;
 let trendChart = null;
 let currentStation = null;
 let currentFilter = 'all';
+let userLocation = null;
+let routingControl = null;
+let userGeoMarker = null;
+let currentDestCoords = null; 
 
-// ==========================================
-// UTILIDADES
-// ==========================================
-function showToast(message, type = 'success') {
-    const toast = document.getElementById('toast');
-    const toastMsg = document.getElementById('toast-message');
-    
-    toast.className = `toast ${type}`;
-    toastMsg.textContent = message;
-    toast.classList.add('show');
-    
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 3000);
-}
-
-function getWeatherIcon(condition) {
-    const icons = {
-        'Clear': '☀️',
-        'Clouds': '☁️',
-        'Rain': '🌧️',
-        'Drizzle': '🌦️',
-        'Thunderstorm': '⛈️',
-        'Snow': '❄️',
-        'Mist': '🌫️',
-        'Fog': '🌫️'
-    };
-    return icons[condition] || '🌤️';
-}
-
-function formatTime(timestamp) {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString('es-ES', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-    });
-}
-
-function formatDate(timestamp) {
-    const date = new Date(timestamp);
-    return date.toLocaleDateString('es-ES', { 
-        day: 'numeric',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
-
-// ==========================================
-// FILTROS
-// ==========================================
-function setupFilters() {
-    const buttons = document.querySelectorAll('.filter-btn');
-    
-    buttons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            // 1. Actualizar estilos visuales (clase active)
-            buttons.forEach(b => b.classList.remove('active'));
-            e.target.classList.add('active');
-            
-            // 2. Actualizar la variable lógica
-            currentFilter = e.target.dataset.filter;
-            
-            // 3. Repintar el mapa con el nuevo filtro
-            // Usamos la variable global stationsData que ya tiene los datos cargados
-            if (stationsData.length > 0) {
-                updateMap(stationsData);
-            }
-
-            // 4. Volver al centro y zoom inicial
-            map.setView([43.366, -8.410], 13);
-
-            // 5. Reiniciar panel lateral
-            document.getElementById('station-details').classList.add('hidden');
-            document.getElementById('intro-msg').classList.remove('hidden');
-        });
-    });
-}
-
-// ==========================================
-// INICIALIZACIÓN
-// ==========================================
 async function init() {
+    console.log("🚀 Iniciando BiciAI...");
     initMap();
     setupFilters();
-    await loadStations();
+    setupTheme();
     setupSearch();
-    
-    // Auto-refresh cada 5 minutos
-    setInterval(loadStations, 300000);
+    await loadData();
+    setInterval(loadData, 300000); 
 
-    document.getElementById('btn-geo').addEventListener('click', () => {
-        map.locate({setView: true, maxZoom: 16});
+    const btnGeo = document.getElementById('btn-geo');
+    if (btnGeo) btnGeo.addEventListener('click', () => map.locate({setView: true, maxZoom: 16}));
+
+    // CERRAR RUTA
+    document.getElementById('btn-stop-route').addEventListener('click', () => {
+        if (routingControl) map.removeControl(routingControl);
+        document.getElementById('route-panel').classList.add('hidden');
+        currentDestCoords = null;
+        routingControl = null;
     });
 
+    // GEOLOCALIZACIÓN
     map.on('locationfound', (e) => {
-        L.circle(e.latlng, {radius: e.accuracy/2, color: '#667eea'}).addTo(map);
-        showToast("📍 Ubicación encontrada");
+        userLocation = e.latlng;
+        if (userGeoMarker) map.removeLayer(userGeoMarker);
+        userGeoMarker = L.layerGroup([
+            L.circle(e.latlng, { radius: e.accuracy/2, color: '#667eea', fillOpacity: 0.15 }),
+            L.circleMarker(e.latlng, { radius: 6, color: '#fff', fillColor: '#2980b9', fillOpacity: 1 })
+        ]).addTo(map);
+
+        // Actualizar ruta si me muevo
+        if (routingControl && currentDestCoords) {
+            const waypoints = routingControl.getWaypoints();
+            if (waypoints && waypoints[0].latLng && e.latlng.distanceTo(waypoints[0].latLng) > 20) {
+                routingControl.setWaypoints([e.latlng, currentDestCoords]);
+            }
+        }
     });
+    map.locate({setView: false, watch: true, enableHighAccuracy: true}); 
 }
 
 function initMap() {
-    map = L.map('map').setView([43.366, -8.410], 13);
+    map = L.map('map', { zoomControl: false }).setView([43.366, -8.410], 13);
     
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap, © CARTO',
-        maxZoom: 19
+    // CAPA VOYAGER (Clara)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { 
+        attribution: '© CARTO', 
+        maxZoom: 19 
     }).addTo(map);
+
+    map.on('click', () => {
+        const card = document.getElementById('station-card');
+        card.classList.add('hidden');
+    });
 }
 
-// ==========================================
-// CARGAR ESTACIONES
-// ==========================================
-async function loadStations() {
+async function loadData() {
     try {
-        const { data, error } = await client
-            .from('estado_actual')
-            .select('*');
+        const [est, snaps, clim] = await Promise.all([
+            client.from('estaciones').select('*'),
+            client.from('snapshots').select('*').order('timestamp', { ascending: false }).limit(2000),
+            client.from('clima').select('*').order('timestamp', { ascending: false }).limit(1)
+        ]);
 
-        if (error) throw error;
-
-        if (!data || data.length === 0) {
-            showToast('No hay datos disponibles', 'error');
-            return;
+        if (clim.data && clim.data.length) {
+            const temp = Math.round(clim.data[0].temperature);
+            document.getElementById('weather-display').textContent = `${clim.data[0].rain_1h > 0 ? '🌧️' : '☀️'} ${temp}°C`;
         }
 
-        stationsData = data;
-        updateMap(data);
-        updateWeather(data[0]);
-        updateTime(data[0].timestamp);
-        
-    } catch (error) {
-        console.error('Error cargando estaciones:', error);
-        showToast('Error al cargar datos', 'error');
-    }
-}
+        const latest = {};
+        if (snaps.data) snaps.data.forEach(s => { if (!latest[s.station_id]) latest[s.station_id] = s; });
 
-function updateMap(stations) {
-    try {
-        // 1. Limpiar marcadores
-        Object.values(markers).forEach(m => map.removeLayer(m));
-        markers = {}; 
-
-        // 2. Contador para depuración (Míralo en la consola F12)
-        let visibleCount = 0;
-
-        stations.forEach(station => {
-            // --- FILTRADO ---
-            
-            // Filtro "Necesito Bici": Ocultar si hay 0 bicis
-            if (currentFilter === 'bikes' && station.available_bikes === 0) return;
-            
-            // Filtro "Necesito Aparcar": Ocultar si hay 0 huecos
-            // NOTA: Si casi todas tienen hueco, parecerá que no hace nada.
-            // Si quieres ser más estricto, cambia 0 por 2 (que haya al menos 2 huecos)
-            if (currentFilter === 'slots' && station.available_slots === 0) return;
-            
-            // ----------------
-            
-            visibleCount++;
-
-            // 3. Colores
-            let color = '#e74c3c'; // Rojo (Malo/Vacío)
-            
-            // Lógica de color según el filtro activo para ayudar visualmente
-            if (currentFilter === 'slots') {
-                // Si busco hueco, me interesa que esté VERDE si hay muchos huecos
-                if (station.available_slots >= 5) color = '#2ecc71';
-                else if (station.available_slots > 0) color = '#f39c12';
-            } else {
-                // Comportamiento normal (busco bicis)
-                if (station.available_bikes >= 5) color = '#2ecc71';
-                else if (station.available_bikes > 0) color = '#f39c12';
-            }
-
-            const marker = L.circleMarker([station.latitude, station.longitude], {
-                color: '#ffffff',
-                weight: 2,
-                fillColor: color,
-                fillOpacity: 0.9,
-                radius: 10
-            }).addTo(map);
-
-            marker.bindPopup(`
-                <strong>${station.name}</strong><br>
-                🚲 ${station.available_bikes} bicis<br>
-                🅿️ ${station.available_slots} huecos
-            `);
-
-            marker.on('click', () => loadStationDetails(station));
-            markers[station.station_id] = marker;
+        stationsData = est.data.map(s => {
+            const st = latest[s.station_id] || latest[s.id];
+            return {
+                ...s,
+                station_id: s.station_id || s.id,
+                available_bikes: st ? st.available_bikes : (s.available_bikes || 0),
+                available_slots: st ? (s.total_capacity - st.available_bikes) : 0
+            };
         });
 
-        console.log(`Filtro "${currentFilter}" aplicado. Estaciones visibles: ${visibleCount}`);
-
-    } catch (error) {
-        console.error("Error al actualizar mapa:", error);
-    }
+        updateMap();
+    } catch (err) { console.error(err); }
 }
 
-function updateWeather(station) {
-    if (station.temperature) {
-        document.getElementById('temperature').textContent = 
-            `${Math.round(station.temperature)}°C`;
-        document.getElementById('weather-desc').textContent = 
-            station.weather_description || 'Sin datos';
+function updateMap() {
+    for (let id in markers) map.removeLayer(markers[id]);
+    markers = {};
+
+    stationsData.forEach(s => {
+        if (currentFilter === 'bikes' && s.available_bikes === 0) return;
+        if (currentFilter === 'slots' && s.available_slots === 0) return;
+
+        const color = s.available_bikes === 0 ? '#e74c3c' : (s.available_bikes < 5 ? '#f39c12' : '#2ecc71');
         
-        const icon = getWeatherIcon(station.weather_condition || 'Clear');
-        document.getElementById('weather-icon').textContent = icon;
-    }
+        const m = L.circleMarker([s.latitude, s.longitude], {
+            radius: 8, fillColor: color, color: "#fff", weight: 2, fillOpacity: 0.9
+        }).addTo(map);
+
+        m.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            loadStationDetails(s);
+        });
+        
+        markers[s.station_id] = m;
+    });
 }
 
-function updateTime(timestamp) {
-    if (timestamp) {
-        document.getElementById('update-time').textContent = 
-            `Última actualización: ${formatDate(timestamp)}`;
-    }
+function loadStationDetails(s) {
+    const card = document.getElementById('station-card');
+    card.classList.remove('hidden'); 
+    currentStation = s;
+
+    document.getElementById('station-name').textContent = s.name;
+    document.getElementById('station-status').textContent = s.available_bikes > 0 ? '🟢 Operativa' : '🔴 Sin bicis';
+    document.getElementById('station-capacity').textContent = `Cap: ${s.total_capacity}`;
+    
+    // KPIs coloreados
+    const bikesEl = document.getElementById('st-bikes');
+    const slotsEl = document.getElementById('st-slots');
+    bikesEl.textContent = s.available_bikes;
+    slotsEl.textContent = s.available_slots;
+    updateColorClass(bikesEl, s.available_bikes);
+    updateColorClass(slotsEl, s.available_slots);
+
+    // Botones
+    const btnR = document.getElementById('btn-draw-route');
+    const newR = btnR.cloneNode(true);
+    btnR.parentNode.replaceChild(newR, btnR);
+    newR.addEventListener('click', () => drawRoute(s));
+
+    const btnIA = document.getElementById('btn-plan-trip');
+    const newIA = btnIA.cloneNode(true);
+    btnIA.parentNode.replaceChild(newIA, btnIA);
+    newIA.addEventListener('click', () => calcIA(s));
+    document.getElementById('trip-result').classList.add('hidden');
+
+    map.flyTo([s.latitude, s.longitude], 16, { duration: 0.5, paddingBottomRight: [0, 200] });
+    setTimeout(() => loadRealCharts(s.station_id), 100);
 }
 
-// ==========================================
-// DETALLES DE ESTACIÓN
-// ==========================================
-async function loadStationDetails(station) {
-    currentStation = station;
-    
-    // Mostrar panel
-    document.getElementById('intro-msg').classList.add('hidden');
-    document.getElementById('station-details').classList.remove('hidden');
-
-    // Actualizar información
-    document.getElementById('station-name').textContent = station.name;
-    document.getElementById('station-capacity').textContent = 
-        `Capacidad: ${station.total_capacity}`;
-    
-    const status = station.available_bikes > 0 ? 'Operativa' : 'Sin bicis';
-    document.getElementById('station-status').textContent = `Estado: ${status}`;
-    
-    document.getElementById('st-bikes').textContent = station.available_bikes;
-    document.getElementById('st-slots').textContent = station.available_slots;
-
-    // Actualizar color del card
-    const card = document.getElementById('card-bikes');
-    card.className = 'kpi-card';
-    
-    if (station.available_bikes >= 5) card.classList.add('green');
-    else if (station.available_bikes > 0) card.classList.add('orange');
-    else card.classList.add('red');
-
-    // Cargar gráficas
-    await loadHistoryChart(station.station_id);
-    await loadTrendChart(station.station_id);
-
-    // Centrar mapa en la estación
-    map.setView([station.latitude, station.longitude], 16);
+function updateColorClass(element, value) {
+    element.classList.remove('text-success', 'text-warning', 'text-danger');
+    if (value >= 5) element.classList.add('text-success');
+    else if (value > 0) element.classList.add('text-warning');
+    else element.classList.add('text-danger');
 }
 
-async function loadHistoryChart(stationId) {
+function drawRoute(dest) {
+    if (!userLocation) { map.locate(); showToast("📍 Buscando ubicación..."); return; }
+    
+    if (routingControl) map.removeControl(routingControl);
+    currentDestCoords = L.latLng(dest.latitude, dest.longitude);
+    
+    routingControl = L.Routing.control({
+        waypoints: [userLocation, currentDestCoords],
+        router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1', profile: 'foot' }),
+        lineOptions: { styles: [{ color: '#667eea', opacity: 0.8, weight: 6 }] },
+        createMarker: () => null, addWaypoints: false, fitSelectedRoutes: true, show: false
+    }).addTo(map);
+    
+    // MOSTRAR PANEL
+    const panel = document.getElementById('route-panel');
+    panel.classList.remove('hidden');
+    document.getElementById('route-time').textContent = "Calc...";
+    document.getElementById('route-dist').textContent = "";
+
+    routingControl.on('routesfound', e => {
+        const s = e.routes[0].summary;
+        document.getElementById('route-time').textContent = `${Math.round(s.totalTime/60)} min`;
+        document.getElementById('route-dist').textContent = `(${ (s.totalDistance/1000).toFixed(1) } km)`;
+    });
+}
+
+async function calcIA(dest) {
+    const res = document.getElementById('trip-result');
+    const load = document.getElementById('trip-loader');
+    const cont = document.getElementById('trip-content');
+    res.classList.remove('hidden'); load.classList.remove('hidden'); cont.innerHTML = '';
+
+    if (!userLocation) { map.locate(); cont.innerHTML = "⚠️ Falta ubicación"; return; }
+    
     try {
-        // 1. Calcular fecha de ayer para filtrar
-        const yesterday = new Date();
-        yesterday.setHours(yesterday.getHours() - 24);
+        const dist = userLocation.distanceTo(L.latLng(dest.latitude, dest.longitude)) / 1000;
+        const mins = Math.round((dist/12)*60);
+        const arrival = new Date(); arrival.setMinutes(arrival.getMinutes() + mins);
+        
+        const { data } = await client.from('predicciones').select('predicted_bikes')
+            .eq('station_id', dest.station_id).gte('prediction_date', arrival.toISOString()).limit(1);
+        
+        let slots = dest.available_slots;
+        if (data && data.length) slots = dest.total_capacity - data[0].predicted_bikes;
+        
+        load.classList.add('hidden');
+        const color = slots > 2 ? 'green' : (slots > 0 ? 'orange' : 'red');
+        const txt = slots > 2 ? 'Probable' : 'Riesgo';
+        cont.innerHTML = `<div class="status-pill status-${color}">${txt}</div> <div>Habrá <b>~${slots} huecos</b> a las ${arrival.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>`;
+    } catch(e) { cont.innerHTML = "Error IA"; }
+}
 
-        // 2. Pedir datos a Supabase
-        const { data, error } = await client
-            .from('snapshots')
-            .select('timestamp, available_bikes')
-            .eq('station_id', stationId)
-            .gte('timestamp', yesterday.toISOString())
-            .order('timestamp', { ascending: true });
+async function loadRealCharts(stationId) {
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+    const { data: historyData } = await client.from('snapshots')
+        .select('timestamp, available_bikes')
+        .eq('station_id', stationId)
+        .gte('timestamp', yesterday.toISOString())
+        .order('timestamp', { ascending: true });
 
-        if (error) throw error;
+    const { data: predData } = await client.from('predicciones')
+        .select('prediction_date, predicted_bikes')
+        .eq('station_id', stationId)
+        .gte('prediction_date', new Date().toISOString())
+        .order('prediction_date', { ascending: true })
+        .limit(24);
 
-        // 3. Preparar etiquetas y valores
-        const labels = data.map(d => formatTime(d.timestamp));
-        const values = data.map(d => d.available_bikes);
+    updateCharts(historyData || [], predData || []);
+}
 
-        // 4. Limpiar gráfica anterior si existe
-        if (historyChart) historyChart.destroy();
+// === CONFIGURACIÓN DE GRÁFICAS MEJORADA ===
+// === SUSTITUYE ESTA FUNCIÓN ENTERA EN logic.js ===
 
-        // 5. Preparar el Contexto (Lienzo)
-        const ctx = document.getElementById('historyChart').getContext('2d');
+function updateCharts(history, predictions) {
+    const isDark = document.body.classList.contains('dark-mode');
+    const textColor = isDark ? '#fff' : '#666';
+    const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
 
-        // === AQUÍ EMPIEZA LA MAGIA DEL DEGRADADO ===
-        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-        // Color de arriba: Azul (#667eea) al 50% de opacidad
-        gradient.addColorStop(0, 'rgba(102, 126, 234, 0.5)');
-        // Color de abajo: Azul al 0% de opacidad (transparente)
-        gradient.addColorStop(1, 'rgba(102, 126, 234, 0.0)');
-        // ===========================================
+    // 1. GRÁFICA HISTORIAL (LÍNEA)
+    const ctxH = document.getElementById('historyChart').getContext('2d');
+    if (historyChart) historyChart.destroy();
+    
+    // Procesar datos historial
+    const hLabels = history.map(d => new Date(d.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+    const hData = history.map(d => d.available_bikes);
 
-        // 6. Crear la Gráfica Nueva
-        historyChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [{
-                    label: 'Bicis disponibles',
-                    data: values,
-                    borderColor: '#667eea', // Color de la línea sólida
-                    
-                    // Estilos del Área (Degradado)
-                    backgroundColor: gradient, 
-                    fill: true,                // Rellenar área bajo la línea
-                    
-                    // Estilos de los Puntos (Estética App Móvil)
-                    pointBackgroundColor: '#ffffff', // Centro blanco
-                    pointBorderColor: '#667eea',     // Borde azul
-                    pointBorderWidth: 2,
-                    pointRadius: 4,            // Tamaño normal
-                    pointHoverRadius: 7,       // Tamaño al pasar el ratón
-                    
-                    borderWidth: 3,            // Grosor de la línea
-                    tension: 0.4               // Suavizado de curvas (0 = rectas, 0.4 = curvas suaves)
-                }]
+    historyChart = new Chart(ctxH, {
+        type: 'line',
+        data: { 
+            labels: hLabels, 
+            datasets: [{ 
+                label: 'Ocupación', 
+                data: hData, 
+                borderColor: '#667eea', 
+                backgroundColor: 'rgba(102,126,234,0.1)', 
+                fill: true, 
+                tension: 0.3,
+                pointRadius: 4,         // Puntos más grandes para verlos bien
+                pointHoverRadius: 6,
+                pointBackgroundColor: '#fff',
+                pointBorderColor: '#667eea'
+            }] 
+        },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            interaction: {
+                mode: 'index',      // MEJORA CLAVE: Detecta el eje X entero, no solo el punto
+                intersect: false,   // MEJORA CLAVE: No hace falta tocar el punto exacto
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false }, // Ocultar leyenda (ya sabemos que son bicis)
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false,
-                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                        titleColor: '#333',
-                        bodyColor: '#667eea',
-                        borderColor: '#ddd',
-                        borderWidth: 1
-                    }
-                },
-                scales: {
-                    x: {
-                        grid: { display: false } // Ocultar rejilla vertical (más limpio)
+            scales: { 
+                x: { 
+                    display: true, 
+                    ticks: { color: textColor, maxTicksLimit: 6 },
+                    grid: { display: false }
+                }, 
+                y: { 
+                    ticks: { color: textColor, stepSize: 1 }, // Números enteros
+                    grid: { color: gridColor },
+                    beginAtZero: true,
+                    suggestedMax: currentStation.total_capacity // Escala proporcional a la estación
+                } 
+            }, 
+            plugins: { 
+                legend: { display: false },
+                tooltip: { 
+                    animation: false, // Quita el lag del tooltip
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)',
+                    titleColor: isDark ? '#000' : '#fff',
+                    bodyColor: isDark ? '#000' : '#fff'
+                } 
+            } 
+        }
+    });
+
+    // 2. GRÁFICA PREDICCIÓN (BARRAS)
+    const ctxT = document.getElementById('trendChart').getContext('2d');
+    if (trendChart) trendChart.destroy();
+    
+    // Procesar datos predicción
+    const pLabels = predictions.map(d => new Date(d.prediction_date).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+    const pData = predictions.map(d => d.predicted_bikes);
+
+    trendChart = new Chart(ctxT, {
+        type: 'bar',
+        data: { 
+            labels: pLabels, 
+            datasets: [{ 
+                label: 'Predicción', 
+                data: pData, 
+                backgroundColor: '#667eea', 
+                borderRadius: 4,
+                hoverBackgroundColor: '#556cd6' 
+            }] 
+        },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            interaction: {
+                mode: 'index',      // Hover estable en toda la columna
+                intersect: false,
+            },
+            scales: { 
+                x: { 
+                    display: true, 
+                    ticks: { 
+                        color: textColor, 
+                        autoSkip: false,   // OBLIGA A MOSTRAR TODAS LAS HORAS
+                        maxRotation: 90,   // Rota las etiquetas si no caben
+                        font: { size: 10 } // Letra un pelín más pequeña para que quepan
                     },
-                    y: { 
-                        beginAtZero: true,
-                        max: currentStation.total_capacity,
-                        grid: {
-                            color: '#f0f0f0' // Rejilla horizontal muy suave
-                        }
-                    }
-                },
-                interaction: {
-                    mode: 'nearest',
-                    axis: 'x',
-                    intersect: false
-                }
-            }
-        });
-    } catch (error) {
-        console.error('Error cargando histórico:', error);
-    }
-}
-
-async function loadTrendChart(stationId) {
-    try {
-        // 1. Obtenemos la hora actual en formato ISO
-        const now = new Date().toISOString();
-
-        // 2. Consultamos la tabla 'predicciones' (FUTURO)
-        const { data, error } = await client
-            .from('predicciones')
-            .select('prediction_date, predicted_bikes')
-            .eq('station_id', stationId)
-            .gte('prediction_date', now) // Solo datos futuros
-            .order('prediction_date', { ascending: true })
-            .limit(24); // Próximas 24 horas
-
-        if (error) throw error;
-
-        // Si no hay predicciones (por si acaso), salimos
-        if (!data || data.length === 0) {
-            console.log("No hay predicciones para esta estación");
-            if (trendChart) trendChart.destroy();
-            return;
-        }
-
-        // 3. Formatear datos para la gráfica
-        const labels = data.map(d => {
-            const date = new Date(d.prediction_date);
-            // Formato de hora simple: "18:00"
-            return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-        });
-        
-        const values = data.map(d => d.predicted_bikes);
-
-        // 4. Pintar Gráfica
-        if (trendChart) trendChart.destroy();
-
-        const ctx = document.getElementById('trendChart').getContext('2d');
-        trendChart = new Chart(ctx, {
-            type: 'bar', // Barras para diferenciarlo del histórico
-            data: {
-                labels,
-                datasets: [{
-                    label: 'Predicción IA (Futuro)',
-                    data: values,
-                    // Usamos un color Morado/Violeta para indicar "IA/Futuro"
-                    backgroundColor: values.map(v => 
-                        v >= 5 ? '#9b59b6' :      // Morado fuerte (Alta)
-                        v > 0 ? '#af7ac5' :       // Morado claro (Media)
-                        '#e8daef'                 // Casi blanco (Baja)
-                    ),
-                    borderRadius: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: (context) => `🤖 Predicción: ${context.raw} bicis`
-                        }
-                    }
-                },
-                scales: {
-                    y: { 
-                        beginAtZero: true,
-                        // Usamos la capacidad real de la estación para el tope
-                        max: currentStation.total_capacity 
+                    grid: { display: false }
+                }, 
+                y: { 
+                    display: true, // AHORA SÍ SE VE EL EJE Y
+                    ticks: { color: textColor, stepSize: 2 },
+                    grid: { color: gridColor },
+                    beginAtZero: true,
+                    max: currentStation.total_capacity // TOPE REAL: La capacidad de la estación
+                } 
+            }, 
+            plugins: { 
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `🔮 Previsión: ${ctx.raw} bicis` // Texto claro
                     }
                 }
-            }
-        });
-    } catch (error) {
-        console.error('Error cargando predicciones:', error);
-    }
-}
-
-// ==========================================
-// BÚSQUEDA
-// ==========================================
-function setupSearch() {
-    const searchInput = document.getElementById('search-input');
-    
-    searchInput.addEventListener('input', (e) => {
-        const query = e.target.value.toLowerCase();
-        
-        if (query.length < 2) return;
-
-        const results = stationsData.filter(s => 
-            s.name.toLowerCase().includes(query)
-        );
-
-        if (results.length > 0) {
-            loadStationDetails(results[0]);
+            } 
         }
     });
 }
 
-// ==========================================
-// ARRANCAR
-// ==========================================
-window.addEventListener('load', init);
+function setupFilters() {
+    document.querySelectorAll('.filter-chip').forEach(b => b.addEventListener('click', e => {
+        document.querySelectorAll('.filter-chip').forEach(x => x.classList.remove('active'));
+        e.target.classList.add('active');
+        currentFilter = e.target.dataset.filter;
+        updateMap();
+    }));
+}
+
+function setupSearch() {
+    document.getElementById('search-input').addEventListener('input', e => {
+        const term = e.target.value.toLowerCase();
+        const f = stationsData.find(s => s.name.toLowerCase().includes(term));
+        if (f) { map.flyTo([f.latitude, f.longitude], 16); loadStationDetails(f); }
+    });
+}
+
+function setupTheme() {
+    document.getElementById('btn-dark-mode').addEventListener('click', () => {
+        document.body.classList.toggle('dark-mode');
+        if (currentStation) loadRealCharts(currentStation.station_id);
+    });
+}
+
+function showToast(m) {
+    const t = document.getElementById('toast');
+    document.getElementById('toast-message').textContent = m;
+    t.style.display = 'block';
+    setTimeout(() => t.style.display='none', 3000);
+}
+
+window.onload = init;
