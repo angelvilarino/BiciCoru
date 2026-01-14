@@ -102,7 +102,7 @@ body.dark-mode .filter-chip.active { background: var(--accent-color); }
 
 /* TARJETA ESTACIÓN */
 .station-card {
-    position: fixed; bottom: 20px; left: 20px; width: 400px; max-height: 80vh;
+    position: fixed; bottom: 20px; left: 15px; width: 370px; max-height: 65vh;
     background: var(--bg-card); color: var(--text-main); border-radius: 20px;
     box-shadow: 0 10px 50px rgba(0,0,0,0.4); z-index: 99999;
     padding: 20px; overflow-y: auto; display: block; 

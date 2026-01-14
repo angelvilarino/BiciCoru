@@ -124,6 +124,15 @@ function updateMap() {
 }
 
 function loadStationDetails(s) {
+
+    // Borrar ruta anterior si existe al hacer clic en otra estación
+    if (routingControl) {
+        map.removeControl(routingControl);
+        document.getElementById('route-panel').classList.add('hidden');
+        currentDestCoords = null;
+        routingControl = null;
+    }
+
     const card = document.getElementById('station-card');
     card.classList.remove('hidden'); 
     currentStation = s;
@@ -193,9 +202,19 @@ async function calcIA(dest) {
     const res = document.getElementById('trip-result');
     const load = document.getElementById('trip-loader');
     const cont = document.getElementById('trip-content');
-    res.classList.remove('hidden'); load.classList.remove('hidden'); cont.innerHTML = '';
+    
+    // 1. Resetear el estado: mostrar contenedor y cargador, vaciar texto anterior
+    res.classList.remove('hidden'); 
+    load.classList.remove('hidden'); 
+    load.style.display = 'block'; // Forzar visibilidad
+    cont.innerHTML = ''; 
 
-    if (!userLocation) { map.locate(); cont.innerHTML = "⚠️ Falta ubicación"; return; }
+    if (!userLocation) { 
+        map.locate(); 
+        load.style.display = 'none'; // Eliminar si falla
+        cont.innerHTML = "⚠️ Activa la ubicación"; 
+        return; 
+    }
     
     try {
         const dist = userLocation.distanceTo(L.latLng(dest.latitude, dest.longitude)) / 1000;
@@ -207,12 +226,22 @@ async function calcIA(dest) {
         
         let slots = dest.available_slots;
         if (data && data.length) slots = dest.total_capacity - data[0].predicted_bikes;
-        
+
         load.classList.add('hidden');
+        load.style.display = 'none'; 
+        
         const color = slots > 2 ? 'green' : (slots > 0 ? 'orange' : 'red');
         const txt = slots > 2 ? 'Probable' : 'Riesgo';
-        cont.innerHTML = `<div class="status-pill status-${color}">${txt}</div> <div>Habrá <b>~${slots} huecos</b> a las ${arrival.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>`;
-    } catch(e) { cont.innerHTML = "Error IA"; }
+        
+        cont.innerHTML = `
+            <div class="status-pill status-${color}">${txt}</div> 
+            <div>Habrá <b>~${slots} huecos</b> a las ${arrival.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+        `;
+    } catch(e) { 
+        // 4. Si hay error, también borramos el "calculando"
+        load.style.display = 'none';
+        cont.innerHTML = "Error al conectar con la IA"; 
+    }
 }
 
 async function loadRealCharts(stationId) {
@@ -362,6 +391,9 @@ function setupFilters() {
         e.target.classList.add('active');
         currentFilter = e.target.dataset.filter;
         updateMap();
+
+        // VOLVER AL ZOOM ORIGINAL
+        map.setView([43.366, -8.410], 13);
     }));
 }
 
