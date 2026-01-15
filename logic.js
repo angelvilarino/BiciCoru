@@ -17,7 +17,7 @@ let currentDestCoords = null;
 let currentRouteMode = 'walk'; // NUEVO: Para recordar el modo activo
 
 async function init() {
-    console.log("🚀 Iniciando BiciAI v3.2 (Fix Routing)...");
+    console.log("🚀 Iniciando BiciAI v3.0 (Mobile Physics)...");
     initMap();
     setupFilters();
     setupTheme();
@@ -26,18 +26,15 @@ async function init() {
     setInterval(loadData, 300000); 
 
     const btnGeo = document.getElementById('btn-geo');
-    if (btnGeo) btnGeo.addEventListener('click', () => map.locate({setView: true, maxZoom: 16}));
+    if (btnGeo) btnGeo.addEventListener('click', () => {
+        map.locate({setView: true, maxZoom: 16});
+        forceLocate(); // Forzar petición extra por si acaso
+    });
 
-    // Cerrar Ruta
     document.getElementById('btn-stop-route').addEventListener('click', () => clearUI(false));
-    
-    // Cerrar Tarjeta (Botón X)
     document.getElementById('btn-close-card').addEventListener('click', () => clearUI(true));
-
-    // Botón Favorito
     document.getElementById('btn-fav').addEventListener('click', toggleFavorite);
 
-    // Geolocalización
     map.on('locationfound', (e) => {
         userLocation = e.latlng;
         if (userGeoMarker) map.removeLayer(userGeoMarker);
@@ -45,23 +42,17 @@ async function init() {
             L.circle(e.latlng, { radius: e.accuracy/2, color: '#667eea', fillOpacity: 0.15 }),
             L.circleMarker(e.latlng, { radius: 6, color: '#fff', fillColor: '#2980b9', fillOpacity: 1 })
         ]).addTo(map);
-
-        // Actualizar lista
         updateStationsList(); 
-
-        // Recalcular ruta si nos movemos
-        if (routingControl && currentDestCoords) {
-            const waypoints = routingControl.getWaypoints();
-            if (waypoints && waypoints[0].latLng && e.latlng.distanceTo(waypoints[0].latLng) > 20) {
-                // Usamos la variable global para saber qué modo recalcular
-                drawRoute(currentStation, currentRouteMode);
-            }
-        }
     });
-    map.locate({setView: false, watch: true, enableHighAccuracy: true}); 
-    // AÑADE ESTAS DOS LÍNEAS AL FINAL DE INIT:
-    initMobileGestures(); // Activar deslizamiento
-    setTimeout(forceLocate, 1000); // Pedir GPS 1seg después de cargar
+
+    // INICIAR LÓGICA MÓVIL
+    // Panel Principal: Asoma 140px por abajo
+    setupDraggableSheet('main-panel', 'main-drag-zone', 140);
+    // Tarjeta Estación: La configuramos para que funcione el arrastre (asomará al abrirse)
+    setupDraggableSheet('station-card', 'card-drag-zone', 250);
+    
+    // Pedir GPS al arrancar
+    setTimeout(forceLocate, 1000);
 }
 
 function initMap() {
@@ -208,11 +199,15 @@ function updateMap() {
 }
 
 function loadStationDetails(s) {
-    document.getElementById('station-list-container').classList.add('hidden');
-    document.getElementById('station-card').classList.remove('hidden');
+    // 1. Ocultar lista y mostrar tarjeta (DOM)
+    document.getElementById('station-list-container').classList.add('hidden'); // Opcional: ocultar contenido lista
+    
+    const card = document.getElementById('station-card');
+    card.classList.remove('hidden');
     
     currentStation = s;
 
+    // Rellenar datos...
     document.getElementById('station-name').textContent = s.name;
     document.getElementById('station-status').textContent = s.available_bikes > 0 ? '🟢 Operativa' : '🔴 Sin bicis';
     document.getElementById('station-capacity').textContent = `Cap: ${s.total_capacity}`;
@@ -226,6 +221,7 @@ function loadStationDetails(s) {
     updateColorClass(bikesEl, s.available_bikes);
     updateColorClass(slotsEl, s.available_slots);
 
+    // Recrear botones (para limpiar listeners viejos)
     const btnWalk = document.getElementById('btn-route-walk');
     const newWalk = btnWalk.cloneNode(true);
     btnWalk.parentNode.replaceChild(newWalk, btnWalk);
@@ -241,6 +237,21 @@ function loadStationDetails(s) {
     btnIA.parentNode.replaceChild(newIA, btnIA);
     newIA.addEventListener('click', () => calcIA(s));
     document.getElementById('trip-result').classList.add('hidden');
+
+    // === MAGIA MÓVIL ===
+    // Si estamos en móvil, subimos la tarjeta automáticamente a una posición cómoda
+    if (window.innerWidth <= 768) {
+        // Calcular posición "Semi-abierta" (que asomen 300px o mitad de pantalla)
+        const visibleHeight = 350; 
+        const targetY = card.offsetHeight - visibleHeight;
+        // Aplicar transformación directa
+        card.style.transform = `translateY(${targetY}px)`;
+        
+        // Colapsar el panel principal para que no estorbe
+        const mainPanel = document.getElementById('main-panel');
+        const mainCollapsedY = mainPanel.offsetHeight - 140; 
+        mainPanel.style.transform = `translateY(${mainCollapsedY}px)`;
+    }
 
     map.flyTo([s.latitude, s.longitude], 16, { duration: 0.5, paddingBottomRight: [0, 200] });
     setTimeout(() => loadRealCharts(s.station_id), 100);
@@ -640,6 +651,110 @@ function forceLocate() {
         },
         { enableHighAccuracy: true, timeout: 5000 }
     );
+}
+
+// === SISTEMA DE ARRASTRE AVANZADO (BOTTOM SHEET) ===
+function setupDraggableSheet(sheetId, dragZoneId, initialVisibleHeight) {
+    const sheet = document.getElementById(sheetId);
+    const handle = document.getElementById(dragZoneId);
+    
+    if (!sheet || !handle) return;
+
+    // Puntos de anclaje (Snap Points)
+    // TOP: Abierto del todo (0px)
+    // MIDDLE: Mitad de pantalla
+    // BOTTOM: Colapsado (solo asoma un poco)
+    const getSnapPoints = () => {
+        const h = sheet.offsetHeight;
+        return {
+            top: 0,
+            middle: h * 0.5, // 50% de la altura
+            bottom: h - initialVisibleHeight
+        };
+    };
+
+    let startY = 0;
+    let currentTranslate = getSnapPoints().bottom;
+    let isDragging = false;
+    let startTime = 0;
+
+    // Inicializar posición
+    updatePosition(currentTranslate);
+
+    // INICIO ARRASTRE
+    handle.addEventListener('touchstart', (e) => {
+        isDragging = true;
+        startY = e.touches[0].clientY;
+        
+        // Leer posición actual real
+        const style = window.getComputedStyle(sheet);
+        const matrix = new WebKitCSSMatrix(style.transform);
+        currentTranslate = matrix.m42; 
+        
+        sheet.classList.add('is-dragging'); // Desactivar transición para fluidez
+        startTime = new Date().getTime();
+    }, {passive: true});
+
+    // DURANTE ARRASTRE
+    handle.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+        const deltaY = e.touches[0].clientY - startY;
+        let newY = currentTranslate + deltaY;
+
+        // Límites elásticos
+        if (newY < 0) newY = newY * 0.2; // Resistencia al tirar hacia arriba del todo
+        
+        sheet.style.transform = `translateY(${newY}px)`;
+    }, {passive: true});
+
+    // FIN ARRASTRE (SNAP)
+    handle.addEventListener('touchend', (e) => {
+        isDragging = false;
+        sheet.classList.remove('is-dragging');
+        
+        const endY = e.changedTouches[0].clientY;
+        const totalDelta = endY - startY;
+        const time = new Date().getTime() - startTime;
+        
+        // Leer dónde quedó
+        const style = window.getComputedStyle(sheet);
+        const matrix = new WebKitCSSMatrix(style.transform);
+        const finalTranslate = matrix.m42;
+        
+        const snaps = getSnapPoints();
+        const velocity = Math.abs(totalDelta) / time;
+        let target = finalTranslate;
+
+        // Lógica de decisión: ¿A dónde va la tarjeta?
+        if (velocity > 0.5) {
+            // Flick rápido
+            if (totalDelta > 0) target = snaps.bottom; // Hacia abajo -> Cerrar
+            else target = snaps.top; // Hacia arriba -> Abrir
+        } else {
+            // Movimiento lento -> Ir al punto más cercano
+            const distTop = Math.abs(finalTranslate - snaps.top);
+            const distMid = Math.abs(finalTranslate - snaps.middle);
+            const distBot = Math.abs(finalTranslate - snaps.bottom);
+            
+            const min = Math.min(distTop, distMid, distBot);
+            if (min === distTop) target = snaps.top;
+            else if (min === distMid) target = snaps.middle;
+            else target = snaps.bottom;
+        }
+
+        updatePosition(target);
+        currentTranslate = target;
+    });
+
+    function updatePosition(y) {
+        sheet.style.transform = `translateY(${y}px)`;
+    }
+}
+
+// === HELPER PARA GPS ===
+function forceLocate() {
+    if (!navigator.geolocation) return;
+    map.locate({setView: false, enableHighAccuracy: true});
 }
 
 window.onload = init;

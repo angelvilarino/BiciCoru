@@ -210,94 +210,83 @@ body.dark-mode .secondary { background: rgba(255,255,255,0.05); color: #fff; bor
 .toast { position: fixed; top: 20px; right: 20px; background: white; padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 10000; display: none; border-left: 5px solid #667eea; }
 
 /* === ESTILOS MÓVILES (TIPO APP) === */
+/* === ESTILOS MÓVILES (DRAGGABLE) === */
 @media (max-width: 768px) {
-    /* PANEL PRINCIPAL (SIDEBAR) */
-    .sidebar-wrapper { 
-        width: 100%; 
-        height: 85vh; /* Ocupa casi toda la pantalla cuando está abierto */
-        bottom: 0; 
-        top: auto; 
+    /* CLASE MAESTRA PARA PANELES DESLIZANTES */
+    .bottom-sheet {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: 85vh; /* Altura máxima */
         background: var(--bg-card);
         border-radius: 20px 20px 0 0;
         box-shadow: 0 -5px 30px rgba(0,0,0,0.2);
+        z-index: 2000;
         
-        /* ESTADO INICIAL: COLAPSADO (Solo se ve header y buscador) */
-        transform: translateY(calc(100% - 170px)); 
-        transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        /* ESTADO INICIAL: Empujado hacia abajo (solo asoma el header) */
+        transform: translateY(calc(100% - 140px)); 
+        transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
         
-        /* Para el gesto de arrastrar */
-        touch-action: none; 
-    }
-
-    /* Clase para cuando el usuario lo abre */
-    .sidebar-wrapper.open {
-        transform: translateY(0);
-    }
-
-    /* TIRADOR (HANDLE) PARA ARRASTRAR */
-    .drag-indicator {
-        width: 40px;
-        height: 5px;
-        background: #ddd;
-        border-radius: 3px;
-        margin: 10px auto;
-        display: block !important; /* Forzar que se vea */
-    }
-
-    .top-controls { 
-        padding: 5px 15px 15px 15px; 
-        background: var(--bg-card);
-        border-radius: 20px 20px 0 0;
-    }
-
-    .station-list-container { 
-        margin: 0; 
-        padding: 0 15px 20px 15px;
-        height: 100%;
-        overflow-y: auto; /* Scroll interno cuando está abierto */
-    }
-
-    /* TARJETA DE ESTACIÓN (DETALLE) */
-    .station-card { 
-        left: 0; 
-        bottom: 0; 
-        width: 100%; 
-        border-radius: 20px 20px 0 0; 
-        max-height: 60vh; /* Reducido para que no tape todo */
-        transform: translateY(110%); /* Oculto inicialmente abajo */
-        transition: transform 0.3s ease;
-        display: flex !important; /* Siempre display flex, ocultamos con transform */
+        display: flex;
         flex-direction: column;
     }
 
-    .station-card:not(.hidden) {
-        transform: translateY(0); /* Subir al mostrar */
+    /* Clase para desactivar animación MIENTRAS arrastras (importante para que no vaya lento) */
+    .is-dragging {
+        transition: none !important;
     }
 
-    .station-card.hidden {
-        display: flex !important;
-        transform: translateY(110%);
+    /* EL PANEL LATERAL AHORA ES UN BOTTOM SHEET */
+    .sidebar-wrapper {
+        top: auto; /* Anulamos estilos de escritorio */
+        height: 85vh;
+        transform: translateY(calc(100% - 140px)); /* Colapsado inicial */
     }
 
-    /* ELEMENTOS DEL MAPA */
-    .map-legend { 
-        top: 20px; /* Arriba a la derecha */
-        right: 10px; 
-        bottom: auto;
-        padding: 8px;
+    /* LA TARJETA DE ESTACIÓN AHORA ES UN BOTTOM SHEET */
+    .station-card {
+        top: auto;
+        left: 0;
+        width: 100%;
+        max-height: 85vh; /* Igual que el sidebar */
+        transform: translateY(110%); /* Oculto totalmente abajo */
+        display: flex !important; /* Siempre visible para el DOM, solo movido */
+        z-index: 2100; /* Por encima del sidebar */
+    }
+
+    /* Cuando la tarjeta está activa (visible pero colapsada o full) */
+    .station-card.active {
+        transform: translateY(calc(100% - 200px)); /* Asoma un poco más */
     }
     
-    .route-panel { 
-        top: 100px; 
-        right: 10px; 
-        padding: 8px 15px; 
+    /* ZONA TÁCTIL (HEADER) */
+    .drag-zone {
+        padding: 10px;
+        cursor: grab;
+        flex-shrink: 0; /* No encoger */
+        background: var(--bg-card); /* Tapar contenido al hacer scroll */
+        border-radius: 20px 20px 0 0;
+    }
+
+    /* EL CONTENIDO SCROLLABLE */
+    .station-list-container, .card-content {
+        overflow-y: auto;
+        flex: 1;
+        padding-bottom: 50px;
+        overscroll-behavior: contain; /* Evita que se mueva la página de fondo */
     }
     
-    /* Ocultar scrollbar visual en el panel */
-    .station-list-container::-webkit-scrollbar { width: 4px; }
+    /* INDICADOR VISUAL (LA BARRA GRIS) */
+    .drag-handle {
+        width: 40px;
+        height: 5px;
+        background: #e0e0e0;
+        border-radius: 10px;
+        margin: 5px auto 10px auto;
+    }
     
-    /* Ajustes menores */
-    .app-header { margin-bottom: 5px; padding: 8px 15px; }
-    .brand h1 { font-size: 1rem; }
-    .search-floating { margin-bottom: 5px; }
+    /* Ocultar elementos de escritorio que molesten */
+    .route-panel { top: 60px; right: 10px; z-index: 1000; }
 }
