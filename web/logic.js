@@ -1,5 +1,5 @@
-const SUPABASE_URL = 'https://nkfvkszhrxwbippbntri.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rZnZrc3pocnh3YmlwcGJudHJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY2NzE2NzMsImV4cCI6MjA4MjI0NzY3M30.ZW3bzvADK-jgMzSDYhCW65_227UMoJAr1CO_XbhO8Ow';
+const SUPABASE_URL = 'SUPABASE_URL_PLACEHOLDER';
+const SUPABASE_KEY = 'SUPABASE_KEY_PLACEHOLDER';
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -13,10 +13,11 @@ let currentFilter = 'all';
 let userLocation = null;
 let routingControl = null;
 let userGeoMarker = null;
-let currentDestCoords = null; 
+let currentDestCoords = null;
+let currentRouteMode = 'walk'; // NUEVO: Para recordar el modo activo
 
 async function init() {
-    console.log("🚀 Iniciando BiciAI...");
+    console.log("🚀 Iniciando BiciAI v3.2 (Fix Routing)...");
     initMap();
     setupFilters();
     setupTheme();
@@ -27,15 +28,16 @@ async function init() {
     const btnGeo = document.getElementById('btn-geo');
     if (btnGeo) btnGeo.addEventListener('click', () => map.locate({setView: true, maxZoom: 16}));
 
-    // CERRAR RUTA
-    document.getElementById('btn-stop-route').addEventListener('click', () => {
-        if (routingControl) map.removeControl(routingControl);
-        document.getElementById('route-panel').classList.add('hidden');
-        currentDestCoords = null;
-        routingControl = null;
-    });
+    // Cerrar Ruta
+    document.getElementById('btn-stop-route').addEventListener('click', () => clearUI(false));
+    
+    // Cerrar Tarjeta (Botón X)
+    document.getElementById('btn-close-card').addEventListener('click', () => clearUI(true));
 
-    // GEOLOCALIZACIÓN
+    // Botón Favorito
+    document.getElementById('btn-fav').addEventListener('click', toggleFavorite);
+
+    // Geolocalización
     map.on('locationfound', (e) => {
         userLocation = e.latlng;
         if (userGeoMarker) map.removeLayer(userGeoMarker);
@@ -44,11 +46,15 @@ async function init() {
             L.circleMarker(e.latlng, { radius: 6, color: '#fff', fillColor: '#2980b9', fillOpacity: 1 })
         ]).addTo(map);
 
-        // Actualizar ruta si me muevo
+        // Actualizar lista
+        updateStationsList(); 
+
+        // Recalcular ruta si nos movemos
         if (routingControl && currentDestCoords) {
             const waypoints = routingControl.getWaypoints();
             if (waypoints && waypoints[0].latLng && e.latlng.distanceTo(waypoints[0].latLng) > 20) {
-                routingControl.setWaypoints([e.latlng, currentDestCoords]);
+                // Usamos la variable global para saber qué modo recalcular
+                drawRoute(currentStation, currentRouteMode);
             }
         }
     });
@@ -58,16 +64,26 @@ async function init() {
 function initMap() {
     map = L.map('map', { zoomControl: false }).setView([43.366, -8.410], 13);
     
-    // CAPA VOYAGER (Clara)
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { 
-        attribution: '© CARTO', 
-        maxZoom: 19 
+        attribution: '© CARTO', maxZoom: 19 
     }).addTo(map);
 
-    map.on('click', () => {
-        const card = document.getElementById('station-card');
-        card.classList.add('hidden');
-    });
+    map.on('click', () => clearUI(true));
+}
+
+function clearUI(closeCard = true) {
+    if (routingControl) { 
+        try { map.removeControl(routingControl); } catch(e){}
+        routingControl = null; 
+    }
+    document.getElementById('route-panel').classList.add('hidden');
+    currentDestCoords = null;
+    
+    if (closeCard) {
+        document.getElementById('station-card').classList.add('hidden');
+        document.getElementById('station-list-container').classList.remove('hidden'); 
+        currentStation = null;
+    }
 }
 
 async function loadData() {
@@ -97,16 +113,81 @@ async function loadData() {
         });
 
         updateMap();
+        updateStationsList(); 
     } catch (err) { console.error(err); }
+}
+
+function updateStationsList() {
+    const listContainer = document.getElementById('stations-list');
+    const headerText = document.getElementById('list-header-text');
+    listContainer.innerHTML = ''; 
+
+    let filtered = stationsData;
+    const favs = getFavorites();
+
+    if (currentFilter === 'bikes') filtered = filtered.filter(s => s.available_bikes > 0);
+    if (currentFilter === 'slots') filtered = filtered.filter(s => s.available_slots > 0);
+    if (currentFilter === 'fav') {
+        filtered = filtered.filter(s => favs.includes(String(s.station_id)));
+        headerText.textContent = `⭐ Tus Favoritas (${filtered.length})`;
+    } else {
+        headerText.textContent = `📍 Más cercanas (${filtered.length})`;
+    }
+
+    if (userLocation) {
+        filtered.sort((a, b) => {
+            const distA = userLocation.distanceTo([a.latitude, a.longitude]);
+            const distB = userLocation.distanceTo([b.latitude, b.longitude]);
+            return distA - distB;
+        });
+    }
+
+    if (filtered.length === 0) {
+        listContainer.innerHTML = '<div style="padding:15px; color:#666;">No se encontraron estaciones.</div>';
+        return;
+    }
+
+    filtered.slice(0, 50).forEach(s => {
+        const item = document.createElement('div');
+        const colorClass = s.available_bikes === 0 ? 'red' : (s.available_bikes < 5 ? 'orange' : 'green');
+        item.className = `list-item ${colorClass}`;
+        
+        let distText = '';
+        if (userLocation) {
+            const d = userLocation.distanceTo([s.latitude, s.longitude]);
+            distText = d < 1000 ? `${Math.round(d)}m` : `${(d/1000).toFixed(1)}km`;
+        }
+
+        item.innerHTML = `
+            <div class="list-info">
+                <h4>${s.name} ${favs.includes(String(s.station_id)) ? '★' : ''}</h4>
+                <div class="list-meta">
+                    <span class="list-badge">🚲 ${s.available_bikes}</span>
+                    <span class="list-badge">🅿️ ${s.available_slots}</span>
+                    ${distText ? `<span class="list-badge">🚶 ${distText}</span>` : ''}
+                </div>
+            </div>
+            <div style="font-size:1.2rem; color:#ccc;">›</div>
+        `;
+        
+        item.addEventListener('click', () => {
+            loadStationDetails(s);
+            map.flyTo([s.latitude, s.longitude], 16);
+        });
+        
+        listContainer.appendChild(item);
+    });
 }
 
 function updateMap() {
     for (let id in markers) map.removeLayer(markers[id]);
     markers = {};
+    const favs = getFavorites();
 
     stationsData.forEach(s => {
         if (currentFilter === 'bikes' && s.available_bikes === 0) return;
         if (currentFilter === 'slots' && s.available_slots === 0) return;
+        if (currentFilter === 'fav' && !favs.includes(String(s.station_id))) return;
 
         const color = s.available_bikes === 0 ? '#e74c3c' : (s.available_bikes < 5 ? '#f39c12' : '#2ecc71');
         
@@ -124,24 +205,17 @@ function updateMap() {
 }
 
 function loadStationDetails(s) {
-
-    // Borrar ruta anterior si existe al hacer clic en otra estación
-    if (routingControl) {
-        map.removeControl(routingControl);
-        document.getElementById('route-panel').classList.add('hidden');
-        currentDestCoords = null;
-        routingControl = null;
-    }
-
-    const card = document.getElementById('station-card');
-    card.classList.remove('hidden'); 
+    document.getElementById('station-list-container').classList.add('hidden');
+    document.getElementById('station-card').classList.remove('hidden');
+    
     currentStation = s;
 
     document.getElementById('station-name').textContent = s.name;
     document.getElementById('station-status').textContent = s.available_bikes > 0 ? '🟢 Operativa' : '🔴 Sin bicis';
     document.getElementById('station-capacity').textContent = `Cap: ${s.total_capacity}`;
     
-    // KPIs coloreados
+    updateFavoriteBtn(s.station_id);
+
     const bikesEl = document.getElementById('st-bikes');
     const slotsEl = document.getElementById('st-slots');
     bikesEl.textContent = s.available_bikes;
@@ -149,11 +223,15 @@ function loadStationDetails(s) {
     updateColorClass(bikesEl, s.available_bikes);
     updateColorClass(slotsEl, s.available_slots);
 
-    // Botones
-    const btnR = document.getElementById('btn-draw-route');
-    const newR = btnR.cloneNode(true);
-    btnR.parentNode.replaceChild(newR, btnR);
-    newR.addEventListener('click', () => drawRoute(s));
+    const btnWalk = document.getElementById('btn-route-walk');
+    const newWalk = btnWalk.cloneNode(true);
+    btnWalk.parentNode.replaceChild(newWalk, btnWalk);
+    newWalk.addEventListener('click', () => drawRoute(s, 'walk'));
+
+    const btnBike = document.getElementById('btn-route-bike');
+    const newBike = btnBike.cloneNode(true);
+    btnBike.parentNode.replaceChild(newBike, btnBike);
+    newBike.addEventListener('click', () => drawRoute(s, 'bike'));
 
     const btnIA = document.getElementById('btn-plan-trip');
     const newIA = btnIA.cloneNode(true);
@@ -165,6 +243,28 @@ function loadStationDetails(s) {
     setTimeout(() => loadRealCharts(s.station_id), 100);
 }
 
+function getFavorites() { return JSON.parse(localStorage.getItem('favStations') || '[]'); }
+function toggleFavorite() {
+    if (!currentStation) return;
+    const id = String(currentStation.station_id);
+    let favs = getFavorites();
+    if (favs.includes(id)) favs = favs.filter(f => f !== id);
+    else favs.push(id);
+    localStorage.setItem('favStations', JSON.stringify(favs));
+    updateFavoriteBtn(id);
+    updateStationsList(); 
+    if (currentFilter === 'fav') updateMap(); 
+}
+function updateFavoriteBtn(id) {
+    const btn = document.getElementById('btn-fav');
+    const favs = getFavorites();
+    if (favs.includes(String(id))) {
+        btn.textContent = '★'; btn.classList.add('active');
+    } else {
+        btn.textContent = '☆'; btn.classList.remove('active');
+    }
+}
+
 function updateColorClass(element, value) {
     element.classList.remove('text-success', 'text-warning', 'text-danger');
     if (value >= 5) element.classList.add('text-success');
@@ -172,29 +272,72 @@ function updateColorClass(element, value) {
     else element.classList.add('text-danger');
 }
 
-function drawRoute(dest) {
+// === CÁLCULO DE RUTA (SOLUCIÓN DEFINITIVA) ===
+function drawRoute(dest, mode = 'walk') {
     if (!userLocation) { map.locate(); showToast("📍 Buscando ubicación..."); return; }
     
-    if (routingControl) map.removeControl(routingControl);
+    // Guardar modo actual para recálculos
+    currentRouteMode = mode;
     currentDestCoords = L.latLng(dest.latitude, dest.longitude);
+
+    // Limpieza
+    if (routingControl) {
+        try { map.removeControl(routingControl); } catch(e){}
+        routingControl = null;
+    }
     
+    // === CONFIGURACIÓN DE SERVIDORES ESPECIALIZADOS ===
+    let serviceUrl, color, icon;
+    
+    if (mode === 'walk') {
+        // Servidor dedicado a Peatones
+        serviceUrl = 'https://routing.openstreetmap.de/routed-foot/route/v1';
+        color = '#667eea'; // Azul
+        icon = '🚶';
+    } else {
+        // Servidor dedicado a Bicis
+        serviceUrl = 'https://routing.openstreetmap.de/routed-bike/route/v1';
+        color = '#e67e22'; // Naranja
+        icon = '🚴';
+    }
+
     routingControl = L.Routing.control({
         waypoints: [userLocation, currentDestCoords],
-        router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1', profile: 'foot' }),
-        lineOptions: { styles: [{ color: '#667eea', opacity: 0.8, weight: 6 }] },
-        createMarker: () => null, addWaypoints: false, fitSelectedRoutes: true, show: false
+        router: L.Routing.osrmv1({ 
+            serviceUrl: serviceUrl,
+            // TRUCO: Estos servidores dedicados esperan 'driving' en la URL aunque sean de bici/pie
+            profile: 'driving' 
+        }),
+        lineOptions: { 
+            styles: [{ color: color, opacity: 0.8, weight: 6 }],
+            extendToWaypoints: false,
+            missingRouteTolerance: 10
+        },
+        createMarker: () => null, 
+        addWaypoints: false, 
+        fitSelectedRoutes: true, 
+        show: false
     }).addTo(map);
     
-    // MOSTRAR PANEL
     const panel = document.getElementById('route-panel');
     panel.classList.remove('hidden');
+    document.getElementById('route-icon').textContent = icon;
     document.getElementById('route-time').textContent = "Calc...";
     document.getElementById('route-dist').textContent = "";
 
     routingControl.on('routesfound', e => {
         const s = e.routes[0].summary;
-        document.getElementById('route-time').textContent = `${Math.round(s.totalTime/60)} min`;
-        document.getElementById('route-dist').textContent = `(${ (s.totalDistance/1000).toFixed(1) } km)`;
+        const mins = Math.round(s.totalTime / 60);
+        const km = (s.totalDistance / 1000).toFixed(1);
+        
+        document.getElementById('route-time').textContent = `${mins} min`;
+        document.getElementById('route-dist').textContent = `(${km} km)`;
+    });
+    
+    routingControl.on('routingerror', function(e) {
+        console.error("Routing error:", e);
+        document.getElementById('route-time').textContent = "Error";
+        showToast("Error de conexión con el servidor de rutas.");
     });
 }
 
@@ -202,23 +345,16 @@ async function calcIA(dest) {
     const res = document.getElementById('trip-result');
     const load = document.getElementById('trip-loader');
     const cont = document.getElementById('trip-content');
-    
-    // 1. Resetear el estado: mostrar contenedor y cargador, vaciar texto anterior
-    res.classList.remove('hidden'); 
-    load.classList.remove('hidden'); 
-    load.style.display = 'block'; // Forzar visibilidad
-    cont.innerHTML = ''; 
+    res.classList.remove('hidden'); load.classList.remove('hidden'); cont.innerHTML = '';
 
-    if (!userLocation) { 
-        map.locate(); 
-        load.style.display = 'none'; // Eliminar si falla
-        cont.innerHTML = "⚠️ Activa la ubicación"; 
-        return; 
-    }
+    if (!userLocation) { map.locate(); cont.innerHTML = "⚠️ Falta ubicación"; return; }
     
     try {
-        const dist = userLocation.distanceTo(L.latLng(dest.latitude, dest.longitude)) / 1000;
-        const mins = Math.round((dist/12)*60);
+        const straightDistKm = userLocation.distanceTo(L.latLng(dest.latitude, dest.longitude)) / 1000;
+        const realDistKm = straightDistKm * 1.4; 
+        const speedKmH = 4.8; 
+        const mins = Math.round((realDistKm / speedKmH) * 60);
+        
         const arrival = new Date(); arrival.setMinutes(arrival.getMinutes() + mins);
         
         const { data } = await client.from('predicciones').select('predicted_bikes')
@@ -226,22 +362,16 @@ async function calcIA(dest) {
         
         let slots = dest.available_slots;
         if (data && data.length) slots = dest.total_capacity - data[0].predicted_bikes;
-
-        load.classList.add('hidden');
-        load.style.display = 'none'; 
         
+        load.classList.add('hidden');
         const color = slots > 2 ? 'green' : (slots > 0 ? 'orange' : 'red');
         const txt = slots > 2 ? 'Probable' : 'Riesgo';
-        
         cont.innerHTML = `
             <div class="status-pill status-${color}">${txt}</div> 
-            <div>Habrá <b>~${slots} huecos</b> a las ${arrival.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+            <div style="font-size:0.9rem; margin-top:5px;">Llegada: <b>${arrival.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</b> (~${mins} min)</div>
+            <div style="font-size:0.8rem; color:#888;">Habrá <b>~${Math.max(0, slots)} huecos</b></div>
         `;
-    } catch(e) { 
-        // 4. Si hay error, también borramos el "calculando"
-        load.style.display = 'none';
-        cont.innerHTML = "Error al conectar con la IA"; 
-    }
+    } catch(e) { cont.innerHTML = "Error IA"; }
 }
 
 async function loadRealCharts(stationId) {
@@ -260,21 +390,39 @@ async function loadRealCharts(stationId) {
         .limit(24);
 
     updateCharts(historyData || [], predData || []);
+    calculatePopularTime(historyData || []);
 }
 
-// === CONFIGURACIÓN DE GRÁFICAS MEJORADA ===
-// === SUSTITUYE ESTA FUNCIÓN ENTERA EN logic.js ===
+function calculatePopularTime(history) {
+    const box = document.getElementById('popular-time-box');
+    if (!history || history.length < 10) { box.classList.add('hidden'); return; }
+    
+    let minBikes = 999;
+    let worstTime = null;
+    
+    history.forEach(h => {
+        if (h.available_bikes < minBikes) {
+            minBikes = h.available_bikes;
+            worstTime = new Date(h.timestamp);
+        }
+    });
+
+    if (worstTime) {
+        box.classList.remove('hidden');
+        box.innerHTML = `🕒 Suele llenarse a las <strong>${worstTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</strong>`;
+    } else {
+        box.classList.add('hidden');
+    }
+}
 
 function updateCharts(history, predictions) {
     const isDark = document.body.classList.contains('dark-mode');
     const textColor = isDark ? '#fff' : '#666';
     const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
 
-    // 1. GRÁFICA HISTORIAL (LÍNEA)
     const ctxH = document.getElementById('historyChart').getContext('2d');
     if (historyChart) historyChart.destroy();
     
-    // Procesar datos historial
     const hLabels = history.map(d => new Date(d.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
     const hData = history.map(d => d.available_bikes);
 
@@ -289,7 +437,7 @@ function updateCharts(history, predictions) {
                 backgroundColor: 'rgba(102,126,234,0.1)', 
                 fill: true, 
                 tension: 0.3,
-                pointRadius: 4,         // Puntos más grandes para verlos bien
+                pointRadius: 4,         
                 pointHoverRadius: 6,
                 pointBackgroundColor: '#fff',
                 pointBorderColor: '#667eea'
@@ -299,8 +447,8 @@ function updateCharts(history, predictions) {
             responsive: true, 
             maintainAspectRatio: false, 
             interaction: {
-                mode: 'index',      // MEJORA CLAVE: Detecta el eje X entero, no solo el punto
-                intersect: false,   // MEJORA CLAVE: No hace falta tocar el punto exacto
+                mode: 'index',      
+                intersect: false,   
             },
             scales: { 
                 x: { 
@@ -309,16 +457,16 @@ function updateCharts(history, predictions) {
                     grid: { display: false }
                 }, 
                 y: { 
-                    ticks: { color: textColor, stepSize: 1 }, // Números enteros
+                    ticks: { color: textColor, stepSize: 1 }, 
                     grid: { color: gridColor },
                     beginAtZero: true,
-                    suggestedMax: currentStation.total_capacity // Escala proporcional a la estación
+                    suggestedMax: currentStation.total_capacity 
                 } 
             }, 
             plugins: { 
                 legend: { display: false },
                 tooltip: { 
-                    animation: false, // Quita el lag del tooltip
+                    animation: false, 
                     backgroundColor: isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)',
                     titleColor: isDark ? '#000' : '#fff',
                     bodyColor: isDark ? '#000' : '#fff'
@@ -327,11 +475,9 @@ function updateCharts(history, predictions) {
         }
     });
 
-    // 2. GRÁFICA PREDICCIÓN (BARRAS)
     const ctxT = document.getElementById('trendChart').getContext('2d');
     if (trendChart) trendChart.destroy();
     
-    // Procesar datos predicción
     const pLabels = predictions.map(d => new Date(d.prediction_date).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
     const pData = predictions.map(d => d.predicted_bikes);
 
@@ -351,7 +497,7 @@ function updateCharts(history, predictions) {
             responsive: true, 
             maintainAspectRatio: false, 
             interaction: {
-                mode: 'index',      // Hover estable en toda la columna
+                mode: 'index',      
                 intersect: false,
             },
             scales: { 
@@ -359,25 +505,25 @@ function updateCharts(history, predictions) {
                     display: true, 
                     ticks: { 
                         color: textColor, 
-                        autoSkip: false,   // OBLIGA A MOSTRAR TODAS LAS HORAS
-                        maxRotation: 90,   // Rota las etiquetas si no caben
-                        font: { size: 10 } // Letra un pelín más pequeña para que quepan
+                        autoSkip: false,   
+                        maxRotation: 90,   
+                        font: { size: 10 } 
                     },
                     grid: { display: false }
                 }, 
                 y: { 
-                    display: true, // AHORA SÍ SE VE EL EJE Y
+                    display: true, 
                     ticks: { color: textColor, stepSize: 2 },
                     grid: { color: gridColor },
                     beginAtZero: true,
-                    max: currentStation.total_capacity // TOPE REAL: La capacidad de la estación
+                    max: currentStation.total_capacity 
                 } 
             }, 
             plugins: { 
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        label: (ctx) => `🔮 Previsión: ${ctx.raw} bicis` // Texto claro
+                        label: (ctx) => `🔮 Previsión: ${ctx.raw} bicis` 
                     }
                 }
             } 
@@ -390,10 +536,10 @@ function setupFilters() {
         document.querySelectorAll('.filter-chip').forEach(x => x.classList.remove('active'));
         e.target.classList.add('active');
         currentFilter = e.target.dataset.filter;
+        
+        clearUI(true); 
         updateMap();
-
-        // VOLVER AL ZOOM ORIGINAL
-        map.setView([43.366, -8.410], 13);
+        updateStationsList(); 
     }));
 }
 
