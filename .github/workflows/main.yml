@@ -23,17 +23,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # PASO 1: Inyectar claves en la raíz (logic.js)
-      # Usamos # como separador para evitar errores con caracteres raros
-      - name: Inject Supabase Keys
-        run: |
-          sed -i 's#SUPABASE_URL_PLACEHOLDER#${{ secrets.SUPABASE_URL }}#g' logic.js
-          sed -i 's#SUPABASE_KEY_PLACEHOLDER#${{ secrets.SUPABASE_KEY }}#g' logic.js
+      # HEMOS BORRADO EL PASO DE "Inject Supabase Keys" PORQUE YA NO HACE FALTA
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
       
-      # PASO 2: Subir la raíz actual (.)
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
