@@ -1,14 +1,18 @@
 name: Deploy BiciCoruna to Pages
+
 on:
   push:
     branches: ["main"]
+
 permissions:
   contents: read
   pages: write
   id-token: write
+
 concurrency:
   group: "pages"
   cancel-in-progress: true
+
 jobs:
   deploy:
     environment:
@@ -19,20 +23,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # INYECTAMOS DENTRO DE LA CARPETA WEB
+      # PASO 1: Inyectar claves en la raíz (logic.js)
+      # Usamos # como separador para evitar errores con caracteres raros
       - name: Inject Supabase Keys
         run: |
-          sed -i 's#SUPABASE_URL_PLACEHOLDER#${{ secrets.SUPABASE_URL }}#g' web/logic.js
-          sed -i 's#SUPABASE_KEY_PLACEHOLDER#${{ secrets.SUPABASE_KEY }}#g' web/logic.js
+          sed -i 's#SUPABASE_URL_PLACEHOLDER#${{ secrets.SUPABASE_URL }}#g' logic.js
+          sed -i 's#SUPABASE_KEY_PLACEHOLDER#${{ secrets.SUPABASE_KEY }}#g' logic.js
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
       
-      # SUBIMOS LA CARPETA WEB
+      # PASO 2: Subir la raíz actual (.)
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'web' 
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
       - name: Deploy to GitHub Pages
         id: deployment
