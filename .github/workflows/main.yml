@@ -23,20 +23,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # PASO 1: Inyectar claves DENTRO de la carpeta 'web'
+      # PASO CLAVE: Asegúrate de que los nombres aquí coinciden con tus secretos
       - name: Inject Supabase Keys
         run: |
-          sed -i "s|SUPABASE_URL_PLACEHOLDER|${{ secrets.SUPABASE_URL }}|g" web/logic.js
-          sed -i "s|SUPABASE_KEY_PLACEHOLDER|${{ secrets.SUPABASE_KEY }}|g" web/logic.js
+          sed -i "s|SUPABASE_URL_PLACEHOLDER|${{ secrets.SUPABASE_URL }}|g" logic.js
+          sed -i "s|SUPABASE_KEY_PLACEHOLDER|${{ secrets.SUPABASE_KEY }}|g" logic.js
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
       
-      # PASO 2: Decirle a GitHub que la web está en la carpeta 'web'
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.' 
+          path: '.'
 
       - name: Deploy to GitHub Pages
         id: deployment
