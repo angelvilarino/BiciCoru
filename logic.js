@@ -59,6 +59,9 @@ async function init() {
         }
     });
     map.locate({setView: false, watch: true, enableHighAccuracy: true}); 
+    // AÑADE ESTAS DOS LÍNEAS AL FINAL DE INIT:
+    initMobileGestures(); // Activar deslizamiento
+    setTimeout(forceLocate, 1000); // Pedir GPS 1seg después de cargar
 }
 
 function initMap() {
@@ -563,6 +566,80 @@ function showToast(m) {
     document.getElementById('toast-message').textContent = m;
     t.style.display = 'block';
     setTimeout(() => t.style.display='none', 3000);
+}
+
+// === 1. GESTOS MÓVILES (SWIPE) ===
+function initMobileGestures() {
+    const sidebar = document.getElementById('mobile-sidebar');
+    if (!sidebar) return;
+
+    let startY = 0;
+    let currentY = 0;
+    let isDragging = false;
+    const threshold = 100; // Mínimo movimiento para abrir/cerrar
+
+    // Escuchar toques en la cabecera (header y controles)
+    const header = document.querySelector('.top-controls');
+    
+    header.addEventListener('touchstart', (e) => {
+        startY = e.touches[0].clientY;
+        isDragging = true;
+    }, {passive: true});
+
+    header.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+        currentY = e.touches[0].clientY;
+        const diff = currentY - startY;
+
+        // Si arrastramos hacia arriba mucho, abrimos
+        if (diff < -50) sidebar.classList.add('open');
+        // Si arrastramos hacia abajo mucho, cerramos
+        if (diff > 50) sidebar.classList.remove('open');
+    }, {passive: true});
+
+    header.addEventListener('touchend', () => {
+        isDragging = false;
+    });
+
+    // Cerrar sidebar si hacemos click en el mapa
+    map.on('click', () => {
+        sidebar.classList.remove('open');
+        clearUI(true);
+    });
+}
+
+// === 2. GEOLOCALIZACIÓN ROBUSTA ===
+function forceLocate() {
+    if (!navigator.geolocation) {
+        showToast("❌ Tu móvil no tiene GPS");
+        return;
+    }
+
+    showToast("📍 Obteniendo ubicación...");
+
+    map.locate({
+        setView: true, 
+        maxZoom: 15,
+        enableHighAccuracy: true,
+        timeout: 10000 
+    });
+
+    // Manejo manual de errores por si Leaflet falla silenciosamente
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            console.log("GPS OK:", pos.coords);
+            // El evento 'locationfound' de Leaflet se encargará del resto
+        },
+        (err) => {
+            console.warn("Error GPS:", err);
+            let msg = "⚠️ Error GPS desconocido";
+            if(err.code === 1) msg = "⚠️ Activa la ubicación en tu navegador";
+            if(err.code === 2) msg = "⚠️ Señal GPS débil";
+            if(err.code === 3) msg = "⚠️ Tiempo de espera agotado";
+            showToast(msg);
+        },
+        { enableHighAccuracy: true, timeout: 5000 }
+    );
 }
 
 window.onload = init;

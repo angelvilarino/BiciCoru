@@ -209,11 +209,95 @@ body.dark-mode .secondary { background: rgba(255,255,255,0.05); color: #fff; bor
 
 .toast { position: fixed; top: 20px; right: 20px; background: white; padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 10000; display: none; border-left: 5px solid #667eea; }
 
+/* === ESTILOS MÓVILES (TIPO APP) === */
 @media (max-width: 768px) {
-    .sidebar-wrapper { width: 100%; height: auto; bottom: 0; top: auto; max-height: 50vh; }
-    .station-list-container { background: var(--bg-card); margin: 0; border-radius: 20px 20px 0 0; padding: 10px; box-shadow: 0 -5px 20px rgba(0,0,0,0.1); }
-    .top-controls { padding: 10px; background: transparent; }
-    .station-card { left: 0; bottom: 0; width: 100%; border-radius: 20px 20px 0 0; max-height: 75vh; }
-    .map-legend { bottom: auto; top: 180px; right: 10px; }
-    .route-panel { top: 160px; right: 10px; padding: 8px 15px; }
+    /* PANEL PRINCIPAL (SIDEBAR) */
+    .sidebar-wrapper { 
+        width: 100%; 
+        height: 85vh; /* Ocupa casi toda la pantalla cuando está abierto */
+        bottom: 0; 
+        top: auto; 
+        background: var(--bg-card);
+        border-radius: 20px 20px 0 0;
+        box-shadow: 0 -5px 30px rgba(0,0,0,0.2);
+        
+        /* ESTADO INICIAL: COLAPSADO (Solo se ve header y buscador) */
+        transform: translateY(calc(100% - 170px)); 
+        transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        
+        /* Para el gesto de arrastrar */
+        touch-action: none; 
+    }
+
+    /* Clase para cuando el usuario lo abre */
+    .sidebar-wrapper.open {
+        transform: translateY(0);
+    }
+
+    /* TIRADOR (HANDLE) PARA ARRASTRAR */
+    .drag-indicator {
+        width: 40px;
+        height: 5px;
+        background: #ddd;
+        border-radius: 3px;
+        margin: 10px auto;
+        display: block !important; /* Forzar que se vea */
+    }
+
+    .top-controls { 
+        padding: 5px 15px 15px 15px; 
+        background: var(--bg-card);
+        border-radius: 20px 20px 0 0;
+    }
+
+    .station-list-container { 
+        margin: 0; 
+        padding: 0 15px 20px 15px;
+        height: 100%;
+        overflow-y: auto; /* Scroll interno cuando está abierto */
+    }
+
+    /* TARJETA DE ESTACIÓN (DETALLE) */
+    .station-card { 
+        left: 0; 
+        bottom: 0; 
+        width: 100%; 
+        border-radius: 20px 20px 0 0; 
+        max-height: 60vh; /* Reducido para que no tape todo */
+        transform: translateY(110%); /* Oculto inicialmente abajo */
+        transition: transform 0.3s ease;
+        display: flex !important; /* Siempre display flex, ocultamos con transform */
+        flex-direction: column;
+    }
+
+    .station-card:not(.hidden) {
+        transform: translateY(0); /* Subir al mostrar */
+    }
+
+    .station-card.hidden {
+        display: flex !important;
+        transform: translateY(110%);
+    }
+
+    /* ELEMENTOS DEL MAPA */
+    .map-legend { 
+        top: 20px; /* Arriba a la derecha */
+        right: 10px; 
+        bottom: auto;
+        padding: 8px;
+    }
+    
+    .route-panel { 
+        top: 100px; 
+        right: 10px; 
+        padding: 8px 15px; 
+    }
+    
+    /* Ocultar scrollbar visual en el panel */
+    .station-list-container::-webkit-scrollbar { width: 4px; }
+    
+    /* Ajustes menores */
+    .app-header { margin-bottom: 5px; padding: 8px 15px; }
+    .brand h1 { font-size: 1rem; }
+    .search-floating { margin-bottom: 5px; }
 }
