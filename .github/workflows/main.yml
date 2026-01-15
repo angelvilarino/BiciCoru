@@ -1,9 +1,10 @@
-name: Deploy BiciCoruna to Pages
+name: Deploy simple web
 
 on:
   push:
     branches: ["main"]
 
+# Permisos necesarios para que GitHub pueda publicar
 permissions:
   contents: read
   pages: write
@@ -20,19 +21,22 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
+      # 1. Bajamos el código
       - name: Checkout
         uses: actions/checkout@v4
 
-      # HEMOS BORRADO EL PASO DE "Inject Supabase Keys" PORQUE YA NO HACE FALTA
-
+      # 2. Configuramos Pages
       - name: Setup Pages
         uses: actions/configure-pages@v4
-      
+
+      # 3. ESTE ES EL PASO QUE FALTABA O FALLABA: Empaquetar la web
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
+          # El punto significa "carpeta actual" (la raíz)
           path: '.'
 
+      # 4. Publicamos el paquete
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
