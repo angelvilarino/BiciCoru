@@ -23,7 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # CAMBIO 1: Indicamos la ruta correcta (web/logic.js)
+      # PASO 1: Inyectar claves DENTRO de la carpeta 'web'
       - name: Inject Supabase Keys
         run: |
           sed -i "s|SUPABASE_URL_PLACEHOLDER|${{ secrets.VITE_SUPABASE_URL }}|g" web/logic.js
@@ -32,7 +32,7 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
       
-      # CAMBIO 2: Indicamos que la web está dentro de la carpeta 'web'
+      # PASO 2: Decirle a GitHub que la web está en la carpeta 'web'
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
