@@ -1,4 +1,4 @@
-name: Deploy simple web
+name: Deploy simple web DEF
 
 on:
   push:
