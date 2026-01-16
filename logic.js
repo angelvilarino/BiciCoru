@@ -46,10 +46,11 @@ async function init() {
     });
 
     // INICIAR LÓGICA MÓVIL
-    // Panel Principal: Asoma 140px por abajo
-    setupDraggableSheet('main-panel', 'main-drag-zone', 140);
-    // Tarjeta Estación: La configuramos para que funcione el arrastre (asomará al abrirse)
-    setupDraggableSheet('station-card', 'card-drag-zone', 250);
+    // SOLO activar físicas si es móvil
+    if (window.innerWidth <= 768) {
+        setupDraggableSheet('main-panel', 'main-drag-zone', 140);
+        setupDraggableSheet('station-card', 'card-drag-zone', 250);
+    }
     
     // Pedir GPS al arrancar
     setTimeout(forceLocate, 1000);
@@ -65,19 +66,119 @@ function initMap() {
     map.on('click', () => clearUI(true));
 }
 
-function clearUI(closeCard = true) {
-    if (routingControl) { 
-        try { map.removeControl(routingControl); } catch(e){}
-        routingControl = null; 
-    }
-    document.getElementById('route-panel').classList.add('hidden');
-    currentDestCoords = null;
+function updateCharts(history, predictions) {
+    const isDark = document.body.classList.contains('dark-mode');
+    const textColor = isDark ? '#fff' : '#333';
+    const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+
+    // --- GRÁFICA 1: HISTORIAL ---
+    const ctxH = document.getElementById('historyChart').getContext('2d');
+    if (historyChart) historyChart.destroy();
     
-    if (closeCard) {
-        document.getElementById('station-card').classList.add('hidden');
-        document.getElementById('station-list-container').classList.remove('hidden'); 
-        currentStation = null;
-    }
+    // Preparar datos (Labels son timestamps completos)
+    const hLabels = history.map(d => new Date(d.timestamp));
+    const hData = history.map(d => d.available_bikes);
+    const hasData = hData.length > 0;
+
+    historyChart = new Chart(ctxH, {
+        type: 'line',
+        data: { 
+            labels: hLabels, 
+            datasets: [{ 
+                label: 'Nº Bicicletas',
+                data: hData, 
+                borderColor: '#667eea', 
+                backgroundColor: 'rgba(102,126,234,0.1)', 
+                fill: true, 
+                tension: 0.3,
+                pointRadius: 0, // Quitamos puntos para que se vea más limpio con tantas horas
+                pointHoverRadius: 4
+            }] 
+        },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { 
+                legend: { display: false },
+                title: { 
+                    display: true, 
+                    text: hasData ? 'Historial (24h)' : 'Sin datos recientes', 
+                    color: textColor
+                },
+                tooltip: { 
+                    mode: 'index', intersect: false,
+                    callbacks: {
+                        title: (ctx) => {
+                            // Formato tooltip: 14:30
+                            const date = new Date(ctx[0].label);
+                            return date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                        }
+                    }
+                } 
+            },
+            scales: { 
+                x: { 
+                    type: 'category', // Importante
+                    ticks: { 
+                        color: textColor, 
+                        maxRotation: 0,
+                        maxTicksLimit: 24, // Intentar mostrar hasta 24 marcas
+                        callback: function(val, index) {
+                            // TRUCO: Solo mostrar la etiqueta si es una hora en punto (aprox)
+                            // "this.getLabelForValue(val)" nos da la fecha original del array hLabels
+                            const date = new Date(this.getLabelForValue(val));
+                            const minutes = date.getMinutes();
+                            
+                            // Mostramos si los minutos son 0, o cercanos a 0 (ej. 0-10) si los datos no son exactos
+                            // Y evitamos mostrar demasiadas pegadas.
+                            if (index % 4 === 0) { // Ajuste para que no se amontonen (muestra 1 de cada 4 datos aprox)
+                                return date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                            }
+                            return null; // Ocultar resto
+                        }
+                    },
+                    grid: { display: false }
+                }, 
+                y: { 
+                    ticks: { color: textColor, stepSize: 1 }, 
+                    grid: { color: gridColor }, 
+                    beginAtZero: true 
+                } 
+            }
+        }
+    });
+
+    // --- GRÁFICA 2: PREDICCIÓN (Sin cambios o ajustes similares si quieres) ---
+    const ctxT = document.getElementById('trendChart').getContext('2d');
+    if (trendChart) trendChart.destroy();
+    
+    const pLabels = predictions.map(d => new Date(d.prediction_date).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+    const pData = predictions.map(d => d.predicted_bikes);
+
+    trendChart = new Chart(ctxT, {
+        type: 'bar',
+        data: { 
+            labels: pLabels, 
+            datasets: [{ 
+                label: 'Predicción', 
+                data: pData, 
+                backgroundColor: '#667eea', 
+                borderRadius: 4 
+            }] 
+        },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { 
+                legend: { display: false },
+                title: { display: true, text: 'Predicción Futura', color: textColor }
+            },
+            scales: { 
+                x: { ticks: { color: textColor, maxRotation: 0, autoSkip: true }, grid: { display: false } }, 
+                y: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true } 
+            }
+        }
+    });
 }
 
 async function loadData() {
@@ -198,65 +299,6 @@ function updateMap() {
     });
 }
 
-function loadStationDetails(s) {
-    // 1. Ocultar lista y mostrar tarjeta (DOM)
-    document.getElementById('station-list-container').classList.add('hidden'); // Opcional: ocultar contenido lista
-    
-    const card = document.getElementById('station-card');
-    card.classList.remove('hidden');
-    
-    currentStation = s;
-
-    // Rellenar datos...
-    document.getElementById('station-name').textContent = s.name;
-    document.getElementById('station-status').textContent = s.available_bikes > 0 ? '🟢 Operativa' : '🔴 Sin bicis';
-    document.getElementById('station-capacity').textContent = `Cap: ${s.total_capacity}`;
-    
-    updateFavoriteBtn(s.station_id);
-
-    const bikesEl = document.getElementById('st-bikes');
-    const slotsEl = document.getElementById('st-slots');
-    bikesEl.textContent = s.available_bikes;
-    slotsEl.textContent = s.available_slots;
-    updateColorClass(bikesEl, s.available_bikes);
-    updateColorClass(slotsEl, s.available_slots);
-
-    // Recrear botones (para limpiar listeners viejos)
-    const btnWalk = document.getElementById('btn-route-walk');
-    const newWalk = btnWalk.cloneNode(true);
-    btnWalk.parentNode.replaceChild(newWalk, btnWalk);
-    newWalk.addEventListener('click', () => drawRoute(s, 'walk'));
-
-    const btnBike = document.getElementById('btn-route-bike');
-    const newBike = btnBike.cloneNode(true);
-    btnBike.parentNode.replaceChild(newBike, btnBike);
-    newBike.addEventListener('click', () => drawRoute(s, 'bike'));
-
-    const btnIA = document.getElementById('btn-plan-trip');
-    const newIA = btnIA.cloneNode(true);
-    btnIA.parentNode.replaceChild(newIA, btnIA);
-    newIA.addEventListener('click', () => calcIA(s));
-    document.getElementById('trip-result').classList.add('hidden');
-
-    // === MAGIA MÓVIL ===
-    // Si estamos en móvil, subimos la tarjeta automáticamente a una posición cómoda
-    if (window.innerWidth <= 768) {
-        // Calcular posición "Semi-abierta" (que asomen 300px o mitad de pantalla)
-        const visibleHeight = 350; 
-        const targetY = card.offsetHeight - visibleHeight;
-        // Aplicar transformación directa
-        card.style.transform = `translateY(${targetY}px)`;
-        
-        // Colapsar el panel principal para que no estorbe
-        const mainPanel = document.getElementById('main-panel');
-        const mainCollapsedY = mainPanel.offsetHeight - 140; 
-        mainPanel.style.transform = `translateY(${mainCollapsedY}px)`;
-    }
-
-    map.flyTo([s.latitude, s.longitude], 16, { duration: 0.5, paddingBottomRight: [0, 200] });
-    setTimeout(() => loadRealCharts(s.station_id), 100);
-}
-
 function getFavorites() { return JSON.parse(localStorage.getItem('favStations') || '[]'); }
 function toggleFavorite() {
     if (!currentStation) return;
@@ -359,61 +401,192 @@ async function calcIA(dest) {
     const res = document.getElementById('trip-result');
     const load = document.getElementById('trip-loader');
     const cont = document.getElementById('trip-content');
-    res.classList.remove('hidden'); load.classList.remove('hidden'); cont.innerHTML = '';
+    
+    // Mostrar contenedor y spinner, limpiar contenido anterior
+    res.classList.remove('hidden'); 
+    load.classList.remove('hidden'); 
+    cont.innerHTML = '';
 
-    if (!userLocation) { map.locate(); cont.innerHTML = "⚠️ Falta ubicación"; return; }
+    if (!userLocation) { 
+        map.locate(); 
+        load.classList.add('hidden'); // Ocultar spinner si falla
+        cont.innerHTML = `<div style="color:var(--text-sub)"><i class="ph ph-warning"></i> Falta ubicación</div>`; 
+        return; 
+    }
     
     try {
+        // 1. Calcular tiempo de llegada estimado
         const straightDistKm = userLocation.distanceTo(L.latLng(dest.latitude, dest.longitude)) / 1000;
-        const realDistKm = straightDistKm * 1.4; 
-        const speedKmH = 4.8; 
+        const realDistKm = straightDistKm * 1.4; // Factor de corrección callejeo
+        const speedKmH = 4.8; // Velocidad promedio caminando
         const mins = Math.round((realDistKm / speedKmH) * 60);
         
-        const arrival = new Date(); arrival.setMinutes(arrival.getMinutes() + mins);
+        const arrival = new Date(); 
+        arrival.setMinutes(arrival.getMinutes() + mins);
         
-        const { data } = await client.from('predicciones').select('predicted_bikes')
-            .eq('station_id', dest.station_id).gte('prediction_date', arrival.toISOString()).limit(1);
+        // 2. Consultar Supabase
+        const { data, error } = await client.from('predicciones').select('predicted_bikes')
+            .eq('station_id', dest.station_id)
+            .gte('prediction_date', arrival.toISOString())
+            .limit(1);
         
-        let slots = dest.available_slots;
-        if (data && data.length) slots = dest.total_capacity - data[0].predicted_bikes;
-        
+        // --- FIX: OCULTAR SPINNER SIEMPRE AQUÍ ---
         load.classList.add('hidden');
+
+        if (error) throw error;
+        
+        // 3. Interpretar datos
+        let slots = dest.available_slots; // Por defecto usamos datos actuales si no hay predicción
+        let predictedBikes = dest.available_bikes;
+
+        if (data && data.length > 0) {
+            predictedBikes = data[0].predicted_bikes;
+            slots = dest.total_capacity - predictedBikes;
+        }
+        
+        // 4. Generar UI
         const color = slots > 2 ? 'green' : (slots > 0 ? 'orange' : 'red');
-        const txt = slots > 2 ? 'Probable' : 'Riesgo';
+        const txt = slots > 2 ? 'Alta Probabilidad' : (slots > 0 ? 'Riesgo Moderado' : 'Muy difícil');
+        const icon = slots > 2 ? 'check-circle' : (slots > 0 ? 'warning' : 'x-circle');
+
         cont.innerHTML = `
-            <div class="status-pill status-${color}">${txt}</div> 
-            <div style="font-size:0.9rem; margin-top:5px;">Llegada: <b>${arrival.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</b> (~${mins} min)</div>
-            <div style="font-size:0.8rem; color:#888;">Habrá <b>~${Math.max(0, slots)} huecos</b></div>
+            <div class="status-pill status-${color}">
+                <i class="ph ph-${icon}"></i> ${txt}
+            </div> 
+            <div style="font-size:0.9rem; margin-top:8px;">
+                Llegada: <b>${arrival.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</b> (~${mins} min)
+            </div>
+            <div style="font-size:0.85rem; color:var(--text-sub); margin-top:4px;">
+                Se esperan <b>~${Math.max(0, slots)} huecos</b> libres
+            </div>
         `;
-    } catch(e) { cont.innerHTML = "Error IA"; }
+
+    } catch(e) { 
+        console.error(e);
+        // --- FIX: OCULTAR SPINNER EN CASO DE ERROR ---
+        load.classList.add('hidden');
+        cont.innerHTML = `<div style="color:#e74c3c; font-size:0.9rem;">
+            <i class="ph ph-warning-circle"></i> No se pudo calcular la predicción
+        </div>`; 
+    }
 }
 
+// 1. CARGA DE DATOS REALES (Últimas 24h)
 async function loadRealCharts(stationId) {
-    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-    const { data: historyData } = await client.from('snapshots')
+    console.log(`📊 Cargando historial 24h para estación ${stationId}...`);
+    
+    // Calcular fecha de ayer
+    const yesterday = new Date();
+    yesterday.setHours(yesterday.getHours() - 24);
+    
+    // Pedir datos DESDE ayer (gte)
+    const { data: rawHistory, error: hError } = await client.from('snapshots')
         .select('timestamp, available_bikes')
         .eq('station_id', stationId)
-        .gte('timestamp', yesterday.toISOString())
-        .order('timestamp', { ascending: true });
+        .gte('timestamp', yesterday.toISOString()) 
+        .order('timestamp', { ascending: true }); // Ordenados por tiempo
 
+    if (hError) console.error("❌ Error Historial:", hError);
+    
+    const historyData = rawHistory || [];
+    console.log(`✅ Puntos encontrados: ${historyData.length}`);
+
+    // Cargar predicciones
     const { data: predData } = await client.from('predicciones')
         .select('prediction_date, predicted_bikes')
         .eq('station_id', stationId)
         .gte('prediction_date', new Date().toISOString())
-        .order('prediction_date', { ascending: true })
         .limit(24);
 
-    updateCharts(historyData || [], predData || []);
-    calculatePopularTime(historyData || []);
+    updateCharts(historyData, predData || []);
+    calculatePopularTime(historyData);
+}
+
+// 2. MOSTRAR TARJETA (Ocultando la lista de abajo)
+function loadStationDetails(s) {
+    // TRUCO VISUAL: Ocultamos la lista para que la tarjeta ocupe su lugar perfecto
+    document.getElementById('station-list-container').classList.add('hidden'); 
+    
+    const card = document.getElementById('station-card');
+    card.classList.remove('hidden');
+    
+    currentStation = s;
+    
+    // Rellenar textos...
+    document.getElementById('station-name').textContent = s.name;
+    document.getElementById('station-status').textContent = s.available_bikes > 0 ? '🟢 Operativa' : '🔴 Sin bicis';
+    document.getElementById('station-capacity').textContent = `Cap: ${s.total_capacity}`;
+    
+    updateFavoriteBtn(s.station_id);
+
+    const bikesEl = document.getElementById('st-bikes');
+    const slotsEl = document.getElementById('st-slots');
+    bikesEl.textContent = s.available_bikes;
+    slotsEl.textContent = s.available_slots;
+    updateColorClass(bikesEl, s.available_bikes);
+    updateColorClass(slotsEl, s.available_slots);
+
+    // Botones (clonar para limpiar eventos)
+    const btnWalk = document.getElementById('btn-route-walk');
+    const newWalk = btnWalk.cloneNode(true);
+    btnWalk.parentNode.replaceChild(newWalk, btnWalk);
+    newWalk.addEventListener('click', () => drawRoute(s, 'walk'));
+
+    const btnBike = document.getElementById('btn-route-bike');
+    const newBike = btnBike.cloneNode(true);
+    btnBike.parentNode.replaceChild(newBike, btnBike);
+    newBike.addEventListener('click', () => drawRoute(s, 'bike'));
+
+    const btnIA = document.getElementById('btn-plan-trip');
+    const newIA = btnIA.cloneNode(true);
+    btnIA.parentNode.replaceChild(newIA, btnIA);
+    newIA.addEventListener('click', () => calcIA(s));
+    document.getElementById('trip-result').classList.add('hidden');
+
+    // MÓVIL
+    if (window.innerWidth <= 768) {
+        const visibleHeight = 350; 
+        const targetY = card.offsetHeight - visibleHeight;
+        card.style.transform = `translateY(${targetY}px)`;
+        // Colapsar panel principal
+        const mainPanel = document.getElementById('main-panel');
+        mainPanel.style.transform = `translateY(${mainPanel.offsetHeight - 140}px)`;
+    }
+
+    map.flyTo([s.latitude, s.longitude], 16, { duration: 0.5, paddingBottomRight: [0, 200] });
+    setTimeout(() => loadRealCharts(s.station_id), 100);
+}
+
+// 3. CERRAR UI (Mostrar lista de nuevo)
+function clearUI(closeCard = true) {
+    if (routingControl) { 
+        try { map.removeControl(routingControl); } catch(e){}
+        routingControl = null; 
+    }
+    document.getElementById('route-panel').classList.add('hidden');
+    currentDestCoords = null;
+    
+    if (closeCard) {
+        document.getElementById('station-card').classList.add('hidden');
+        // IMPORTANTE: Volver a mostrar la lista al cerrar la tarjeta
+        document.getElementById('station-list-container').classList.remove('hidden'); 
+        currentStation = null;
+    }
 }
 
 function calculatePopularTime(history) {
     const box = document.getElementById('popular-time-box');
-    if (!history || history.length < 10) { box.classList.add('hidden'); return; }
+    
+    // Si no hay suficientes datos, ocultamos y salimos
+    if (!history || history.length < 5) { 
+        box.classList.add('hidden'); 
+        return; 
+    }
     
     let minBikes = 999;
     let worstTime = null;
     
+    // Buscamos el momento con menos bicis
     history.forEach(h => {
         if (h.available_bikes < minBikes) {
             minBikes = h.available_bikes;
@@ -421,9 +594,17 @@ function calculatePopularTime(history) {
         }
     });
 
+    // Solo mostramos si realmente baja mucho (ej: menos de 2 bicis)
+    // O si quieres mostrar siempre el mínimo, quita la condición "minBikes < 3"
     if (worstTime) {
         box.classList.remove('hidden');
-        box.innerHTML = `🕒 Suele llenarse a las <strong>${worstTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</strong>`;
+        // Texto profesional con icono Phosphor
+        box.innerHTML = `
+            <div style="display:flex; align-items:center; gap:8px;">
+                <i class="ph ph-clock" style="font-size:1.2rem;"></i>
+                <span>Hora crítica estimada: <strong>${worstTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</strong> <span style="opacity:0.8; font-size:0.85em">(Suele vaciarse)</span></span>
+            </div>
+        `;
     } else {
         box.classList.add('hidden');
     }
@@ -431,64 +612,66 @@ function calculatePopularTime(history) {
 
 function updateCharts(history, predictions) {
     const isDark = document.body.classList.contains('dark-mode');
-    const textColor = isDark ? '#fff' : '#666';
-    const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+    const textColor = isDark ? '#fff' : '#333';
+    const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
 
+    // --- GRÁFICA 1: HISTORIAL ---
     const ctxH = document.getElementById('historyChart').getContext('2d');
     if (historyChart) historyChart.destroy();
     
+    // Preparar datos
     const hLabels = history.map(d => new Date(d.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
     const hData = history.map(d => d.available_bikes);
+    
+    // Si no hay datos, ponemos un array vacío para que no falle, pero el título avisará
+    const hasData = hData.length > 0;
 
     historyChart = new Chart(ctxH, {
         type: 'line',
         data: { 
             labels: hLabels, 
             datasets: [{ 
-                label: 'Ocupación', 
+                label: 'Nº Bicicletas Disponibles', // ETIQUETA CLARA
                 data: hData, 
                 borderColor: '#667eea', 
                 backgroundColor: 'rgba(102,126,234,0.1)', 
                 fill: true, 
                 tension: 0.3,
-                pointRadius: 4,         
-                pointHoverRadius: 6,
-                pointBackgroundColor: '#fff',
-                pointBorderColor: '#667eea'
+                pointRadius: hasData ? 3 : 0
             }] 
         },
         options: { 
             responsive: true, 
             maintainAspectRatio: false, 
-            interaction: {
-                mode: 'index',      
-                intersect: false,   
-            },
-            scales: { 
-                x: { 
-                    display: true, 
-                    ticks: { color: textColor, maxTicksLimit: 6 },
-                    grid: { display: false }
-                }, 
-                y: { 
-                    ticks: { color: textColor, stepSize: 1 }, 
-                    grid: { color: gridColor },
-                    beginAtZero: true,
-                    suggestedMax: currentStation.total_capacity 
-                } 
-            }, 
             plugins: { 
                 legend: { display: false },
+                title: { 
+                    display: true, 
+                    // TÍTULO EXPLÍCITO
+                    text: hasData ? 'Historial: Bicicletas (últimas 24h)' : 'Sin datos de historial recientes', 
+                    color: textColor,
+                    font: { size: 14 }
+                },
                 tooltip: { 
-                    animation: false, 
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)',
-                    titleColor: isDark ? '#000' : '#fff',
-                    bodyColor: isDark ? '#000' : '#fff'
+                    mode: 'index', intersect: false,
+                    callbacks: {
+                        label: (ctx) => `🚲 ${ctx.raw} bicis disponibles`
+                    }
                 } 
-            } 
+            },
+            scales: { 
+                x: { ticks: { color: textColor, maxTicksLimit: 6 }, grid: { display: false } }, 
+                y: { 
+                    ticks: { color: textColor, stepSize: 1 }, 
+                    grid: { color: gridColor }, 
+                    beginAtZero: true,
+                    title: { display: true, text: 'Cantidad Bicis', color: textColor } // Eje Y explicado
+                } 
+            }
         }
     });
 
+    // --- GRÁFICA 2: PREDICCIÓN ---
     const ctxT = document.getElementById('trendChart').getContext('2d');
     if (trendChart) trendChart.destroy();
     
@@ -500,47 +683,37 @@ function updateCharts(history, predictions) {
         data: { 
             labels: pLabels, 
             datasets: [{ 
-                label: 'Predicción', 
+                label: 'Predicción Bicis', // ETIQUETA CLARA
                 data: pData, 
                 backgroundColor: '#667eea', 
-                borderRadius: 4,
-                hoverBackgroundColor: '#556cd6' 
+                borderRadius: 4 
             }] 
         },
         options: { 
             responsive: true, 
             maintainAspectRatio: false, 
-            interaction: {
-                mode: 'index',      
-                intersect: false,
-            },
-            scales: { 
-                x: { 
-                    display: true, 
-                    ticks: { 
-                        color: textColor, 
-                        autoSkip: false,   
-                        maxRotation: 90,   
-                        font: { size: 10 } 
-                    },
-                    grid: { display: false }
-                }, 
-                y: { 
-                    display: true, 
-                    ticks: { color: textColor, stepSize: 2 },
-                    grid: { color: gridColor },
-                    beginAtZero: true,
-                    max: currentStation.total_capacity 
-                } 
-            }, 
             plugins: { 
                 legend: { display: false },
+                title: { 
+                    display: true, 
+                    text: predictions.length ? 'Futuro: Bicis estimadas' : 'Calculando predicciones...', 
+                    color: textColor 
+                },
                 tooltip: {
                     callbacks: {
-                        label: (ctx) => `🔮 Previsión: ${ctx.raw} bicis` 
+                        label: (ctx) => `🔮 Esperamos ${ctx.raw} bicis` 
                     }
                 }
-            } 
+            },
+            scales: { 
+                x: { ticks: { color: textColor, maxRotation: 0, autoSkip: true }, grid: { display: false } }, 
+                y: { 
+                    ticks: { color: textColor }, 
+                    grid: { color: gridColor }, 
+                    beginAtZero: true,
+                    title: { display: true, text: 'Bicis estimadas', color: textColor }
+                } 
+            }
         }
     });
 }

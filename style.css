@@ -209,7 +209,7 @@ body.dark-mode .secondary { background: rgba(255,255,255,0.05); color: #fff; bor
 
 .toast { position: fixed; top: 20px; right: 20px; background: white; padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 10000; display: none; border-left: 5px solid #667eea; }
 
-/* === ESTILOS MÓVILES (TIPO APP) === */
+
 /* === ESTILOS MÓVILES (DRAGGABLE) === */
 @media (max-width: 768px) {
     /* CLASE MAESTRA PARA PANELES DESLIZANTES */
@@ -289,4 +289,103 @@ body.dark-mode .secondary { background: rgba(255,255,255,0.05); color: #fff; bor
     
     /* Ocultar elementos de escritorio que molesten */
     .route-panel { top: 60px; right: 10px; z-index: 1000; }
+}
+
+/* === ESCRITORIO (SOLUCIÓN FINAL Y FIJA) === */
+@media (min-width: 769px) {
+    /* 1. EL PANEL LATERAL (CONTENEDOR) */
+    .sidebar-wrapper {
+        position: fixed !important;
+        top: 20px !important;
+        left: 20px !important;
+        bottom: 20px !important;
+        width: 400px !important; /* ANCHO FIJO */
+        
+        display: flex !important;
+        flex-direction: column !important;
+        
+        background: transparent !important;
+        pointer-events: none; /* Dejar pasar clicks en huecos */
+        z-index: 1000;
+        transform: none !important;
+    }
+
+    /* Ocultar tirador de móvil */
+    .drag-zone { display: none !important; }
+
+    /* 2. ZONA SUPERIOR (Buscador y Filtros) */
+    .top-controls {
+        pointer-events: auto;
+        flex-shrink: 0; /* No encogerse */
+        background: var(--bg-card);
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: var(--shadow);
+        margin-bottom: 15px; /* Separación */
+        z-index: 1001;
+        position: relative;
+    }
+
+    /* 3. LISTA DE ESTACIONES (Fondo) */
+    .station-list-container {
+        pointer-events: auto;
+        flex-grow: 1; /* Ocupar el resto de altura */
+        background: var(--bg-card);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: flex !important;
+        flex-direction: column;
+        position: relative;
+    }
+    
+    .stations-list-scroll {
+        padding: 10px 10px 20px 20px;
+    }
+
+    /* 4. TARJETA DE ESTACIÓN (SUPERPUESTA) */
+    /* Aquí estaba el fallo: hay que darle coordenadas fijas para que no ocupe 100% */
+    .station-card {
+        pointer-events: auto;
+        position: fixed !important; 
+        
+        /* Posición fija alineada con el sidebar */
+        left: 20px !important; 
+        width: 400px !important;
+        
+        /* AJUSTE FINO: Empieza justo debajo del buscador */
+        top: 235px !important; 
+        bottom: 20px !important; /* Llega hasta abajo */
+        
+        background: var(--bg-card) !important;
+        border-radius: 16px !important;
+        box-shadow: 0 -5px 30px rgba(0,0,0,0.15) !important;
+        z-index: 2000 !important;
+        
+        transform: none !important;
+        display: flex !important;
+        flex-direction: column;
+        padding: 0 !important;
+        max-height: none !important;
+    }
+    
+    /* Asegurarse que la lista se oculte bien cuando JS se lo diga */
+    .station-list-container.hidden { display: none !important; }
+
+    /* Contenido scrolleable dentro de la tarjeta */
+    .card-content {
+        padding: 20px;
+        overflow-y: auto;
+        height: 100%;
+    }
+
+    /* Botón cerrar visible en escritorio */
+    .close-card-btn {
+        top: 15px; right: 15px; display: block;
+    }
+
+    /* Ocultar de verdad */
+    .station-card.hidden { display: none !important; }
 }

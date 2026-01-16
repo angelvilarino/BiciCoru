@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
     
     <link rel="stylesheet" href="style.css?v=3.0">
 </head>
@@ -24,32 +25,35 @@
         </div>
 
         <div class="sidebar-wrapper bottom-sheet" id="main-panel">
+    
             <div class="drag-zone" id="main-drag-zone">
-                <div class="drag-handle"></div> <div class="top-controls">
-                    <div class="app-header">
-                        <div class="brand">
-                            <h1>🚲 BiciAI</h1>
-                            <div class="weather-mini" id="weather-display">☁️ --°C</div>
-                        </div>
-                        <button id="btn-dark-mode" class="theme-btn">🌙</button>
-                    </div>
+                <div class="drag-handle"></div> 
+            </div>
 
-                    <div class="search-floating">
-                        <input type="text" id="search-input" placeholder="🔍 Buscar estación..." autocomplete="off">
-                        <button id="btn-geo" class="icon-btn" title="Mi ubicación">📍</button>
+            <div class="top-controls">
+                <div class="app-header">
+                    <div class="brand">
+                        <h1>🚲 BiciAI</h1>
+                        <div class="weather-mini" id="weather-display"><i class="ph ph-cloud-sun"></i> --°C</div>
                     </div>
+                    <button id="btn-dark-mode" class="theme-btn"><i class="ph ph-moon"></i></button>
+                </div>
 
-                    <div class="filters-scroll">
-                        <button class="filter-chip active" data-filter="all">Todas</button>
-                        <button class="filter-chip" data-filter="fav">⭐ Favoritas</button>
-                        <button class="filter-chip" data-filter="bikes">Necesito Bici</button>
-                        <button class="filter-chip" data-filter="slots">Quiero Aparcar</button>
-                    </div>
+                <div class="search-floating">
+                    <input type="text" id="search-input" placeholder="🔍 Buscar estación..." autocomplete="off">
+                    <button id="btn-geo" class="icon-btn" title="Mi ubicación"><i class="ph ph-crosshair"></i></button>
+                </div>
+
+                <div class="filters-scroll">
+                    <button class="filter-chip active" data-filter="all">Todas</button>
+                    <button class="filter-chip" data-filter="fav"><i class="ph ph-star"></i> Favoritas</button>
+                    <button class="filter-chip" data-filter="bikes">Necesito Bici</button>
+                    <button class="filter-chip" data-filter="slots">Quiero Aparcar</button>
                 </div>
             </div>
 
             <div id="station-list-container" class="station-list-container">
-                <div class="list-header" id="list-header-text">📍 Más cercanas a ti</div>
+                <div class="list-header" id="list-header-text"><i class="ph ph-map-pin"></i> Más cercanas a ti</div>
                 <div id="stations-list" class="stations-list-scroll">
                     <div class="loading-list">Calculando distancias...</div>
                 </div>
@@ -87,20 +91,20 @@
 
                 <div class="ai-planning-card" id="ai-card">
                     <div class="ai-header">
-                        <span class="ai-icon">✨</span>
+                        <span class="ai-icon"><i class="ph ph-magic-wand"></i></span>
                         <div class="ai-title"><strong>Planificador & Rutas</strong></div>
                     </div>
                     
                     <div class="ai-actions-grid">
                         <button id="btn-plan-trip" class="ai-action-btn primary full-width">
-                            <span>🔮 Predicción de Disponibilidad</span>
+                            <span><i class="ph ph-magic-wand"></i> Predicción de Disponibilidad</span>
                         </button>
                         <div class="route-buttons-row">
                             <button id="btn-route-walk" class="ai-action-btn secondary">
-                                🚶 Ir andando
+                                <i class="ph ph-person-simple-walk"></i> Ir andando
                             </button>
                             <button id="btn-route-bike" class="ai-action-btn secondary">
-                                🚴 Ir en bici
+                                <i class="ph ph-bicycle"></i> Ir en bici
                             </button>
                         </div>
                     </div>
