@@ -1,26 +1,25 @@
 const SUPABASE_URL = 'https://nkfvkszhrxwbippbntri.supabase.co';
-// Clave pública (ANON) para leer
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rZnZrc3pocnh3YmlwcGJudHJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY2NzE2NzMsImV4cCI6MjA4MjI0NzY3M30.ZW3bzvADK-jgMzSDYhCW65_227UMoJAr1CO_XbhO8Ow';
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let map;
 let markers = {};
-let heatLayer = null; // NUEVO: Capa de calor
+let heatLayer = null;
+let isHeatmapActive = false;
 let stationsData = [];
 let historyChart = null;
 let trendChart = null;
-let elevationChart = null; // NUEVO: Gráfica de elevación
+let elevationChart = null;
 let currentStation = null;
 let currentFilter = 'all';
 let userLocation = null;
 let routingControl = null;
 let userGeoMarker = null;
 let currentDestCoords = null;
-let currentRouteMode = 'walk'; 
 
 async function init() {
-    console.log("🚀 Iniciando BiciAI v4.0 (Heatmap + Elevation)...");
+    console.log("🚀 Iniciando BiciAI v5.0...");
     initMap();
     setupFilters();
     setupTheme();
@@ -34,6 +33,7 @@ async function init() {
         forceLocate(); 
     });
 
+    document.getElementById('btn-heatmap').addEventListener('click', toggleHeatmap);
     document.getElementById('btn-stop-route').addEventListener('click', () => clearUI(false));
     document.getElementById('btn-close-card').addEventListener('click', () => clearUI(true));
     document.getElementById('btn-fav').addEventListener('click', toggleFavorite);
@@ -58,50 +58,60 @@ async function init() {
 
 function initMap() {
     map = L.map('map', { zoomControl: false }).setView([43.366, -8.410], 13);
-    
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { 
         attribution: '© CARTO', maxZoom: 19 
     }).addTo(map);
-
     map.on('click', () => clearUI(true));
 }
 
-// === NUEVO: Lógica de Mapa de Calor ===
-function updateMap() {
-    // 1. Limpiar marcadores normales
-    for (let id in markers) map.removeLayer(markers[id]);
-    markers = {};
-    
-    // 2. Limpiar capa de calor si existe
-    if (heatLayer) {
-        map.removeLayer(heatLayer);
-        heatLayer = null;
+// === MAPA DE CALOR & LEYENDA ===
+function toggleHeatmap() {
+    if (typeof L.heatLayer === 'undefined') {
+        console.error("❌ Falta librería Heatmap");
+        return;
     }
 
-    // A. MODO MAPA DE CALOR
-    if (currentFilter === 'heat') {
-        // Preparamos los datos: [lat, lng, intensidad]
-        // Intensidad basada en bicis disponibles (más bicis = más rojo)
+    isHeatmapActive = !isHeatmapActive;
+    const btn = document.getElementById('btn-heatmap');
+    const markerLeg = document.getElementById('marker-legend');
+    const heatLeg = document.getElementById('heatmap-legend');
+
+    if (isHeatmapActive) {
+        btn.classList.add('active');
+        markerLeg.classList.add('hidden'); // Ocultar leyenda normal
+        heatLeg.classList.remove('hidden'); // Mostrar leyenda calor
+        showToast("🔥 Mapa de calor activado");
+    } else {
+        btn.classList.remove('active');
+        markerLeg.classList.remove('hidden'); // Mostrar leyenda normal
+        heatLeg.classList.add('hidden'); // Ocultar leyenda calor
+        showToast("📍 Modo normal");
+    }
+    
+    updateMap();
+}
+
+function updateMap() {
+    for (let id in markers) map.removeLayer(markers[id]);
+    markers = {};
+    if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
+
+    if (isHeatmapActive) {
+        if (typeof L.heatLayer === 'undefined') return;
+
         const heatPoints = stationsData.map(s => {
-            // Intensidad normalizada: si hay 10 bicis o más, es el máximo (1.0)
             const intensity = Math.min(s.available_bikes / 10, 1.0);
             return [s.latitude, s.longitude, intensity];
         });
 
         heatLayer = L.heatLayer(heatPoints, {
-            radius: 25,
-            blur: 15,
-            maxZoom: 17,
-            gradient: {0.4: 'blue', 0.65: 'lime', 1: 'red'}
+            radius: 30, blur: 20, maxZoom: 16,
+            gradient: {0.3: 'blue', 0.6: 'lime', 1: 'red'}
         }).addTo(map);
-        
-        showToast("🔥 Mapa de Calor activado");
-        return; // No pintamos marcadores en este modo
+        return;
     }
 
-    // B. MODO MARCADORES NORMAL
     const favs = getFavorites();
-
     stationsData.forEach(s => {
         if (currentFilter === 'bikes' && s.available_bikes === 0) return;
         if (currentFilter === 'slots' && s.available_slots === 0) return;
@@ -117,24 +127,18 @@ function updateMap() {
             L.DomEvent.stopPropagation(e);
             loadStationDetails(s);
         });
-        
         markers[s.station_id] = m;
     });
 }
 
-// === CÁLCULO DE RUTA CON ELEVACIÓN ===
+// === RUTA Y ELEVACIÓN MEJORADA ===
 function drawRoute(dest, mode = 'walk') {
     if (!userLocation) { map.locate(); showToast("📍 Buscando ubicación..."); return; }
     
-    currentRouteMode = mode;
     currentDestCoords = L.latLng(dest.latitude, dest.longitude);
 
-    if (routingControl) {
-        try { map.removeControl(routingControl); } catch(e){}
-        routingControl = null;
-    }
+    if (routingControl) { try { map.removeControl(routingControl); } catch(e){} routingControl = null; }
     
-    // Ocultar gráfica anterior
     document.getElementById('elevation-box').classList.add('hidden');
     
     let serviceUrl = mode === 'walk' 
@@ -146,10 +150,7 @@ function drawRoute(dest, mode = 'walk') {
     routingControl = L.Routing.control({
         waypoints: [userLocation, currentDestCoords],
         router: L.Routing.osrmv1({ serviceUrl: serviceUrl, profile: 'driving' }),
-        lineOptions: { 
-            styles: [{ color: color, opacity: 0.8, weight: 6 }],
-            extendToWaypoints: false, missingRouteTolerance: 10
-        },
+        lineOptions: { styles: [{ color: color, opacity: 0.8, weight: 6 }] },
         createMarker: () => null, addWaypoints: false, fitSelectedRoutes: true, show: false
     }).addTo(map);
     
@@ -159,7 +160,7 @@ function drawRoute(dest, mode = 'walk') {
     document.getElementById('route-time').textContent = "Calc...";
     document.getElementById('route-dist').textContent = "";
 
-    routingControl.on('routesfound', async e => {
+    routingControl.on('routesfound', e => {
         const r = e.routes[0];
         const mins = Math.round(r.summary.totalTime / 60);
         const km = (r.summary.totalDistance / 1000).toFixed(1);
@@ -167,48 +168,36 @@ function drawRoute(dest, mode = 'walk') {
         document.getElementById('route-time').textContent = `${mins} min`;
         document.getElementById('route-dist').textContent = `(${km} km)`;
 
-        // === CÁLCULO DE ELEVACIÓN (HACK API EXTERNA) ===
-        // OSRM no da elevación, así que cogemos las coordenadas de la ruta
-        // y consultamos a open-elevation.com
         calculateElevationProfile(r.coordinates);
-    });
-    
-    routingControl.on('routingerror', function(e) {
-        document.getElementById('route-time').textContent = "Error";
-        showToast("Error de conexión con el servidor de rutas.");
     });
 }
 
-// === FUNCIÓN MÁGICA DE ELEVACIÓN ===
 async function calculateElevationProfile(coords) {
     const box = document.getElementById('elevation-box');
     
-    // 1. Muestrear coordenadas (coger 1 de cada 10 para no saturar la API)
-    // Máximo 40 puntos para que sea rápido
-    const step = Math.ceil(coords.length / 40);
+    // Muestreo optimizado
+    const step = Math.max(1, Math.ceil(coords.length / 80));
     const sample = coords.filter((_, i) => i % step === 0);
     
-    // Formato API Open Elevation
-    const locations = sample.map(c => ({ lat: c.lat, lon: c.lng }));
+    const lats = sample.map(c => c.lat.toFixed(4)).join(',');
+    const lngs = sample.map(c => c.lng.toFixed(4)).join(',');
+    
+    const url = `https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lngs}`;
     
     try {
-        // Mostrar caja vacía o con loader si quieres
-        box.classList.remove('hidden');
-        
-        const response = await fetch('https://api.open-elevation.com/api/v1/lookup', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ locations: locations })
-        });
-        
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`API Status: ${response.status}`);
         const data = await response.json();
-        const elevations = data.results.map(r => r.elevation);
         
+        if (!data || !data.elevation || data.elevation.length === 0) throw new Error("Datos vacíos");
+
+        const elevations = data.elevation;
+        box.classList.remove('hidden');
         drawElevationChart(elevations);
         
     } catch (e) {
-        console.warn("No se pudo obtener elevación:", e);
-        box.classList.add('hidden'); // Ocultar si falla
+        console.warn("⚠️ Elevación no disponible:", e);
+        box.classList.add('hidden');
     }
 }
 
@@ -216,39 +205,42 @@ function drawElevationChart(elevations) {
     const ctx = document.getElementById('elevationChart').getContext('2d');
     if (elevationChart) elevationChart.destroy();
     
-    // Crear etiquetas falsas (progreso ruta)
-    const labels = elevations.map((_, i) => i === 0 ? 'Inicio' : (i === elevations.length - 1 ? 'Fin' : ''));
+    const labels = elevations.map(() => '');
 
     elevationChart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
             datasets: [{
-                label: 'Altitud (m)',
                 data: elevations,
                 borderColor: '#667eea',
                 backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                borderWidth: 2,
                 fill: true,
-                tension: 0.4, // Suavizar curvas
-                pointRadius: 0
+                pointRadius: 0,
+                tension: 0.4
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false }, tooltip: { enabled: true } },
+            plugins: { legend: { display: false }, tooltip: { enabled: true, mode: 'index', intersect: false } },
             scales: {
-                x: { display: false }, // Ocultar eje X
+                x: { display: false },
                 y: { 
-                    display: true,
-                    ticks: { color: '#888', font: {size: 10} },
-                    grid: { display: false }
+                    display: true, 
+                    // AQUÍ ESTÁ EL FORMATO "m" y el TÍTULO
+                    title: { display: true, text: 'Altitud', color: '#666', font: {size: 9} },
+                    ticks: { color: '#888', font: {size: 9}, callback: (val) => val + 'm' }, 
+                    grid: {display: false} 
                 }
-            }
+            },
+            animation: { duration: 800 }
         }
     });
 }
 
+// === LÓGICA GENERAL ===
 async function loadData() {
     try {
         const [est, snaps, clim] = await Promise.all([
@@ -288,18 +280,13 @@ function updateStationsList() {
     let filtered = stationsData;
     const favs = getFavorites();
 
-    if (window.searchTerm) {
-        filtered = filtered.filter(s => s.name.toLowerCase().includes(window.searchTerm));
-    }
+    if (window.searchTerm) filtered = filtered.filter(s => s.name.toLowerCase().includes(window.searchTerm));
 
     if (currentFilter === 'bikes') filtered = filtered.filter(s => s.available_bikes > 0);
     if (currentFilter === 'slots') filtered = filtered.filter(s => s.available_slots > 0);
     if (currentFilter === 'fav') {
         filtered = filtered.filter(s => favs.includes(String(s.station_id)));
         headerText.textContent = `⭐ Tus Favoritas (${filtered.length})`;
-    } else if (currentFilter === 'heat') {
-         headerText.textContent = `🔥 Mapa de Calor Activado`;
-         // En modo calor mostramos todas en la lista igualmente
     } else {
         headerText.textContent = `📍 Más cercanas (${filtered.length})`;
     }
@@ -344,7 +331,6 @@ function updateStationsList() {
             loadStationDetails(s);
             map.flyTo([s.latitude, s.longitude], 16);
         });
-        
         listContainer.appendChild(item);
     });
 }
@@ -382,17 +368,9 @@ async function calcIA(dest) {
     const res = document.getElementById('trip-result');
     const load = document.getElementById('trip-loader');
     const cont = document.getElementById('trip-content');
-    
-    res.classList.remove('hidden'); 
-    load.classList.remove('hidden'); 
-    cont.innerHTML = '';
+    res.classList.remove('hidden'); load.classList.remove('hidden'); cont.innerHTML = '';
 
-    if (!userLocation) { 
-        map.locate(); 
-        load.classList.add('hidden'); 
-        cont.innerHTML = `<div style="color:var(--text-sub)"><i class="ph ph-warning"></i> Falta ubicación</div>`; 
-        return; 
-    }
+    if (!userLocation) { map.locate(); load.classList.add('hidden'); cont.innerHTML = `<div style="color:var(--text-sub)">Falta ubicación</div>`; return; }
     
     try {
         const straightDistKm = userLocation.distanceTo(L.latLng(dest.latitude, dest.longitude)) / 1000;
@@ -404,85 +382,52 @@ async function calcIA(dest) {
         arrival.setMinutes(arrival.getMinutes() + mins);
         
         const { data, error } = await client.from('predicciones').select('predicted_bikes')
-            .eq('station_id', dest.station_id)
-            .gte('prediction_date', arrival.toISOString())
-            .limit(1);
+            .eq('station_id', dest.station_id).gte('prediction_date', arrival.toISOString()).limit(1);
         
         load.classList.add('hidden');
-
         if (error) throw error;
         
         let slots = dest.available_slots;
-        let predictedBikes = dest.available_bikes;
-
-        if (data && data.length > 0) {
-            predictedBikes = data[0].predicted_bikes;
-            slots = dest.total_capacity - predictedBikes;
-        }
+        if (data && data.length > 0) slots = dest.total_capacity - data[0].predicted_bikes;
         
         const color = slots > 2 ? 'green' : (slots > 0 ? 'orange' : 'red');
-        const txt = slots > 2 ? 'Alta Probabilidad' : (slots > 0 ? 'Riesgo Moderado' : 'Muy difícil');
+        const txt = slots > 2 ? 'Alta Probabilidad' : (slots > 0 ? 'Riesgo' : 'Muy difícil');
         const icon = slots > 2 ? 'check-circle' : (slots > 0 ? 'warning' : 'x-circle');
 
         cont.innerHTML = `
-            <div class="status-pill status-${color}">
-                <i class="ph ph-${icon}"></i> ${txt}
-            </div> 
-            <div style="font-size:0.9rem; margin-top:8px;">
-                Llegada: <b>${arrival.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</b> (~${mins} min)
-            </div>
-            <div style="font-size:0.85rem; color:var(--text-sub); margin-top:4px;">
-                Se esperan <b>~${Math.max(0, slots)} huecos</b> libres
-            </div>
+            <div class="status-pill status-${color}"><i class="ph ph-${icon}"></i> ${txt}</div> 
+            <div style="font-size:0.9rem; margin-top:8px;">Llegada: <b>${arrival.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</b> (~${mins} min)</div>
+            <div style="font-size:0.85rem; color:var(--text-sub); margin-top:4px;">Se esperan <b>~${Math.max(0, slots)} huecos</b></div>
         `;
-
     } catch(e) { 
-        console.error(e);
         load.classList.add('hidden');
-        cont.innerHTML = `<div style="color:#e74c3c; font-size:0.9rem;">
-            <i class="ph ph-warning-circle"></i> No se pudo calcular la predicción
-        </div>`; 
+        cont.innerHTML = `<div style="color:#e74c3c;">Error predicción</div>`; 
     }
 }
 
 async function loadRealCharts(stationId) {
-    console.log(`📊 Cargando historial 24h para estación ${stationId}...`);
-    
     const yesterday = new Date();
     yesterday.setHours(yesterday.getHours() - 24);
     
-    const { data: rawHistory, error: hError } = await client.from('snapshots')
-        .select('timestamp, available_bikes')
-        .eq('station_id', stationId)
-        .gte('timestamp', yesterday.toISOString()) 
-        .order('timestamp', { ascending: true });
-
-    if (hError) console.error("❌ Error Historial:", hError);
-    
-    const historyData = rawHistory || [];
+    const { data: rawHistory } = await client.from('snapshots')
+        .select('timestamp, available_bikes').eq('station_id', stationId).gte('timestamp', yesterday.toISOString()).order('timestamp', { ascending: true });
 
     const { data: predData } = await client.from('predicciones')
-        .select('prediction_date, predicted_bikes')
-        .eq('station_id', stationId)
-        .gte('prediction_date', new Date().toISOString())
-        .limit(24);
+        .select('prediction_date, predicted_bikes').eq('station_id', stationId).gte('prediction_date', new Date().toISOString()).limit(24);
 
-    updateCharts(historyData, predData || []);
-    calculatePopularTime(historyData);
+    updateCharts(rawHistory || [], predData || []);
+    calculatePopularTime(rawHistory || []);
 }
 
 function loadStationDetails(s) {
     document.getElementById('station-list-container').classList.add('hidden'); 
-    
     const card = document.getElementById('station-card');
     card.classList.remove('hidden');
-    
     currentStation = s;
     
     document.getElementById('station-name').textContent = s.name;
     document.getElementById('station-status').textContent = s.available_bikes > 0 ? '🟢 Operativa' : '🔴 Sin bicis';
     document.getElementById('station-capacity').textContent = `Cap: ${s.total_capacity}`;
-    
     updateFavoriteBtn(s.station_id);
 
     const bikesEl = document.getElementById('st-bikes');
@@ -509,8 +454,7 @@ function loadStationDetails(s) {
     document.getElementById('trip-result').classList.add('hidden');
 
     if (window.innerWidth <= 768) {
-        const visibleHeight = 350; 
-        const targetY = card.offsetHeight - visibleHeight;
+        const targetY = card.offsetHeight - 350;
         card.style.transform = `translateY(${targetY}px)`;
         const mainPanel = document.getElementById('main-panel');
         mainPanel.style.transform = `translateY(${mainPanel.offsetHeight - 140}px)`;
@@ -521,10 +465,7 @@ function loadStationDetails(s) {
 }
 
 function clearUI(closeCard = true) {
-    if (routingControl) { 
-        try { map.removeControl(routingControl); } catch(e){}
-        routingControl = null; 
-    }
+    if (routingControl) { try { map.removeControl(routingControl); } catch(e){} routingControl = null; }
     document.getElementById('route-panel').classList.add('hidden');
     document.getElementById('elevation-box').classList.add('hidden');
     currentDestCoords = null;
@@ -539,117 +480,39 @@ function clearUI(closeCard = true) {
 function calculatePopularTime(history) {
     const box = document.getElementById('popular-time-box');
     if (!history || history.length < 5) { box.classList.add('hidden'); return; }
-    
-    let minBikes = 999;
-    let worstTime = null;
-    
-    history.forEach(h => {
-        if (h.available_bikes < minBikes) {
-            minBikes = h.available_bikes;
-            worstTime = new Date(h.timestamp);
-        }
-    });
+    let minBikes = 999; let worstTime = null;
+    history.forEach(h => { if (h.available_bikes < minBikes) { minBikes = h.available_bikes; worstTime = new Date(h.timestamp); } });
 
     if (worstTime) {
         box.classList.remove('hidden');
-        box.innerHTML = `
-            <div style="display:flex; align-items:center; gap:8px;">
-                <i class="ph ph-clock" style="font-size:1.2rem;"></i>
-                <span>Hora crítica estimada: <strong>${worstTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</strong> <span style="opacity:0.8; font-size:0.85em">(Suele vaciarse)</span></span>
-            </div>
-        `;
-    } else {
-        box.classList.add('hidden');
-    }
+        box.innerHTML = `<div style="display:flex; align-items:center; gap:8px;"><i class="ph ph-clock" style="font-size:1.2rem;"></i><span>Hora crítica: <strong>${worstTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</strong></span></div>`;
+    } else { box.classList.add('hidden'); }
 }
 
 function updateCharts(history, predictions) {
     const isDark = document.body.classList.contains('dark-mode');
     const textColor = isDark ? '#fff' : '#333';
-    const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
-
+    
     const ctxH = document.getElementById('historyChart').getContext('2d');
     if (historyChart) historyChart.destroy();
-    
     const hLabels = history.map(d => new Date(d.timestamp));
     const hData = history.map(d => d.available_bikes);
-    const hasData = hData.length > 0;
-
+    
     historyChart = new Chart(ctxH, {
         type: 'line',
-        data: { 
-            labels: hLabels, 
-            datasets: [{ 
-                label: 'Nº Bicicletas',
-                data: hData, 
-                borderColor: '#667eea', 
-                backgroundColor: 'rgba(102,126,234,0.1)', 
-                fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 4
-            }] 
-        },
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            plugins: { 
-                legend: { display: false },
-                title: { 
-                    display: true, 
-                    text: hasData ? 'Historial (24h)' : 'Sin datos recientes', 
-                    color: textColor
-                },
-                tooltip: { 
-                    mode: 'index', intersect: false,
-                    callbacks: {
-                        title: (ctx) => {
-                            const date = new Date(ctx[0].label);
-                            return date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                        }
-                    }
-                } 
-            },
-            scales: { 
-                x: { 
-                    type: 'category', 
-                    ticks: { 
-                        color: textColor, maxRotation: 0, maxTicksLimit: 24,
-                        callback: function(val, index) {
-                            const date = new Date(this.getLabelForValue(val));
-                            if (index % 4 === 0) return date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                            return null;
-                        }
-                    },
-                    grid: { display: false }
-                }, 
-                y: { ticks: { color: textColor, stepSize: 1 }, grid: { color: gridColor }, beginAtZero: true } 
-            }
-        }
+        data: { labels: hLabels, datasets: [{ label: 'Bicis', data: hData, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.1)', fill: true, tension: 0.3, pointRadius: 0 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { ticks: { color: textColor } } } }
     });
 
     const ctxT = document.getElementById('trendChart').getContext('2d');
     if (trendChart) trendChart.destroy();
-    
     const pLabels = predictions.map(d => new Date(d.prediction_date).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
     const pData = predictions.map(d => d.predicted_bikes);
 
     trendChart = new Chart(ctxT, {
         type: 'bar',
-        data: { 
-            labels: pLabels, 
-            datasets: [{ 
-                label: 'Predicción', data: pData, backgroundColor: '#667eea', borderRadius: 4 
-            }] 
-        },
-        options: { 
-            responsive: true, maintainAspectRatio: false, 
-            plugins: { 
-                legend: { display: false },
-                title: { display: true, text: 'Predicción Futura', color: textColor }
-            },
-            scales: { 
-                x: { ticks: { color: textColor, maxRotation: 0, autoSkip: true }, grid: { display: false } }, 
-                y: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true } 
-            }
-        }
+        data: { labels: pLabels, datasets: [{ label: 'Predicción', data: pData, backgroundColor: '#667eea', borderRadius: 4 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { ticks: { color: textColor } } } }
     });
 }
 
@@ -658,24 +521,16 @@ function setupFilters() {
         document.querySelectorAll('.filter-chip').forEach(x => x.classList.remove('active'));
         e.target.classList.add('active');
         currentFilter = e.target.dataset.filter;
-        
-        clearUI(true); 
-        updateMap();
-        updateStationsList(); 
+        clearUI(true); updateMap(); updateStationsList(); 
     }));
 }
 
 function setupSearch() {
     document.getElementById('search-input').addEventListener('input', e => {
-        const term = e.target.value.toLowerCase();
-        
-        // 1. Guardar término global y actualizar lista
-        window.searchTerm = term;
+        window.searchTerm = e.target.value.toLowerCase();
         updateStationsList();
-
-        // 2. Si coincidencia exacta, volar
-        const f = stationsData.find(s => s.name.toLowerCase().includes(term));
-        if (f && term.length > 3) { map.flyTo([f.latitude, f.longitude], 16); }
+        const f = stationsData.find(s => s.name.toLowerCase().includes(window.searchTerm));
+        if (f && window.searchTerm.length > 3) { map.flyTo([f.latitude, f.longitude], 16); }
     });
 }
 
@@ -693,46 +548,28 @@ function showToast(m) {
     setTimeout(() => t.style.display='none', 3000);
 }
 
-// === SISTEMA DE ARRASTRE MEJORADO (Detecta cabecera completa) ===
 function setupDraggableSheet(sheetId, dragZoneId, initialVisibleHeight) {
     const sheet = document.getElementById(sheetId);
     const handle = document.getElementById(dragZoneId);
     const extraHandle = sheet.querySelector('.top-controls') || sheet.querySelector('.station-header-row');
     
     if (!sheet || !handle) return;
+    const getSnapPoints = () => ({ top: 0, middle: window.innerHeight * 0.4, bottom: sheet.offsetHeight - initialVisibleHeight });
 
-    const getSnapPoints = () => {
-        const h = window.innerHeight; 
-        return {
-            top: 0,
-            middle: h * 0.4, 
-            bottom: sheet.offsetHeight - initialVisibleHeight
-        };
-    };
-
-    let startY = 0;
-    let currentTranslate = getSnapPoints().bottom;
-    let isDragging = false;
-    let startTime = 0;
+    let startY = 0; let currentTranslate = getSnapPoints().bottom; let isDragging = false; let startTime = 0;
 
     const addListeners = (element) => {
         if(!element) return;
         element.addEventListener('touchstart', (e) => {
             if (['INPUT', 'BUTTON', 'I'].includes(e.target.tagName)) return;
-            isDragging = true;
-            startY = e.touches[0].clientY;
-            
+            isDragging = true; startY = e.touches[0].clientY;
             const style = window.getComputedStyle(sheet);
             const matrix = new WebKitCSSMatrix(style.transform);
             currentTranslate = matrix.m42; 
-            
-            sheet.classList.add('is-dragging');
-            startTime = new Date().getTime();
+            sheet.classList.add('is-dragging'); startTime = new Date().getTime();
         }, {passive: false});
     };
-
-    addListeners(handle);
-    addListeners(extraHandle);
+    addListeners(handle); addListeners(extraHandle);
 
     window.addEventListener('touchmove', (e) => {
         if (!isDragging) return;
@@ -744,25 +581,19 @@ function setupDraggableSheet(sheetId, dragZoneId, initialVisibleHeight) {
 
     window.addEventListener('touchend', (e) => {
         if (!isDragging) return;
-        isDragging = false;
-        sheet.classList.remove('is-dragging');
-        
+        isDragging = false; sheet.classList.remove('is-dragging');
         const endY = e.changedTouches[0].clientY;
         const totalDelta = endY - startY;
         const time = new Date().getTime() - startTime;
-        
         const style = window.getComputedStyle(sheet);
         const matrix = new WebKitCSSMatrix(style.transform);
         const finalTranslate = matrix.m42;
-        
         const snaps = getSnapPoints();
         const velocity = Math.abs(totalDelta) / time;
         let target = finalTranslate;
 
-        if (velocity > 0.5 && time < 300) {
-            if (totalDelta > 0) target = snaps.bottom; 
-            else target = snaps.top; 
-        } else {
+        if (velocity > 0.5 && time < 300) { target = totalDelta > 0 ? snaps.bottom : snaps.top; } 
+        else {
             const distTop = Math.abs(finalTranslate - snaps.top);
             const distMid = Math.abs(finalTranslate - snaps.middle);
             const distBot = Math.abs(finalTranslate - snaps.bottom);
@@ -771,19 +602,11 @@ function setupDraggableSheet(sheetId, dragZoneId, initialVisibleHeight) {
             else if (min === distMid) target = snaps.middle;
             else target = snaps.bottom;
         }
-
-        updatePosition(target);
+        sheet.style.transform = `translateY(${target}px)`;
         currentTranslate = target;
     });
-
-    function updatePosition(y) {
-        sheet.style.transform = `translateY(${y}px)`;
-    }
 }
 
-function forceLocate() {
-    if (!navigator.geolocation) return;
-    map.locate({setView: false, enableHighAccuracy: true});
-}
+function forceLocate() { if (navigator.geolocation) map.locate({setView: false, enableHighAccuracy: true}); }
 
 window.onload = init;

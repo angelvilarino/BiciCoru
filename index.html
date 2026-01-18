@@ -9,20 +9,21 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    
     <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
-
-    <link rel="stylesheet" href="style.css?v=4.0">
+    
+    <link rel="stylesheet" href="style.css?v=5.0">
 </head>
 <body>
     <div class="container">
         
         <div id="route-panel" class="route-panel hidden">
             <div class="route-header">
-                <span id="route-icon" class="route-icon">🚶</span>
-                <div class="route-data">
-                    <span id="route-time" class="route-time">-- min</span>
-                    <span id="route-dist" class="route-dist">-- km</span>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span id="route-icon" class="route-icon">🚶</span>
+                    <div class="route-data">
+                        <span id="route-time" class="route-time">-- min</span>
+                        <span id="route-dist" class="route-dist">-- km</span>
+                    </div>
                 </div>
                 <button id="btn-stop-route" class="close-route-btn">✕</button>
             </div>
@@ -42,7 +43,14 @@
                         <h1>🚲 BiciAI</h1>
                         <div class="weather-mini" id="weather-display"><i class="ph ph-cloud-sun"></i> --°C</div>
                     </div>
-                    <button id="btn-dark-mode" class="theme-btn"><i class="ph ph-moon"></i></button>
+                    <div class="header-actions">
+                        <button id="btn-heatmap" class="theme-btn" title="Mapa de Calor">
+                            <i class="ph ph-fire"></i>
+                        </button>
+                        <button id="btn-dark-mode" class="theme-btn" title="Modo Oscuro">
+                            <i class="ph ph-moon"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="search-floating">
@@ -55,7 +63,6 @@
                     <button class="filter-chip" data-filter="fav"><i class="ph ph-star"></i> Favoritas</button>
                     <button class="filter-chip" data-filter="bikes">Necesito Bici</button>
                     <button class="filter-chip" data-filter="slots">Quiero Aparcar</button>
-                    <button class="filter-chip" data-filter="heat">🔥 Mapa Calor</button>
                 </div>
             </div>
 
@@ -140,19 +147,29 @@
 
         <main id="map"></main>
 
-        <div class="map-legend">
-            <div class="legend-item"><div class="legend-color" style="background:#2ecc71"></div><span>5+</span></div>
-            <div class="legend-item"><div class="legend-color" style="background:#f39c12"></div><span>1-4</span></div>
-            <div class="legend-item"><div class="legend-color" style="background:#e74c3c"></div><span>0</span></div>
+        <div class="map-legend" id="marker-legend">
+            <div class="legend-item"><div class="legend-color" style="background:#2ecc71"></div><span>5+ Bicis</span></div>
+            <div class="legend-item"><div class="legend-color" style="background:#f39c12"></div><span>1-4 Bicis</span></div>
+            <div class="legend-item"><div class="legend-color" style="background:#e74c3c"></div><span>0 Bicis</span></div>
         </div>
+
+        <div class="map-legend hidden" id="heatmap-legend">
+            <div style="font-size:0.75rem; color:#666; margin-bottom:5px; text-align:center;">Concentración de Bicis</div>
+            <div class="heatmap-gradient"></div>
+            <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#888;">
+                <span>Pocas</span>
+                <span>Muchas</span>
+            </div>
+        </div>
+
         <div class="toast" id="toast"><span id="toast-message"></span></div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
-    <script src="logic.js?v=4.0"></script>
+    <script src="logic.js?v=5.0"></script>
 </body>
 </html>

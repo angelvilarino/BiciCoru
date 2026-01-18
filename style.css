@@ -29,25 +29,14 @@ body.dark-mode #map { filter: invert(100%) hue-rotate(180deg) brightness(95%) co
 
 /* === ESTRUCTURA LATERAL === */
 .sidebar-wrapper {
-    position: absolute;
-    top: 0; left: 0;
-    width: 400px;
-    max-width: 100%;
-    height: 100%; /* Ocupa toda la altura */
-    z-index: 2000;
-    pointer-events: none;
-    display: flex;
-    flex-direction: column;
+    position: absolute; top: 0; left: 0; width: 400px; max-width: 100%; height: 100%; 
+    z-index: 2000; pointer-events: none; display: flex; flex-direction: column;
 }
 
-/* CONTROLES SUPERIORES */
+/* CONTROLES */
 .top-controls {
-    pointer-events: auto;
-    background: transparent;
-    padding: 15px;
-    flex-shrink: 0;
+    pointer-events: auto; background: transparent; padding: 15px; flex-shrink: 0;
 }
-
 .app-header {
     display: flex; justify-content: space-between; align-items: center;
     background: var(--bg-card); color: var(--text-main); padding: 10px 15px;
@@ -55,7 +44,14 @@ body.dark-mode #map { filter: invert(100%) hue-rotate(180deg) brightness(95%) co
 }
 .brand h1 { font-size: 1.2rem; font-weight: 800; display: inline-block; margin-right: 10px; }
 .weather-mini { font-size: 0.9rem; color: var(--text-sub); display: inline-block; background: rgba(102,126,234,0.1); padding: 4px 8px; border-radius: 6px; }
-.theme-btn { background: transparent; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-main); }
+
+.header-actions { display: flex; gap: 8px; }
+.theme-btn { 
+    background: transparent; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-main); 
+    padding: 5px; border-radius: 8px; transition: all 0.2s;
+}
+.theme-btn:hover { background: rgba(0,0,0,0.05); }
+#btn-heatmap.active { color: #e74c3c; background: rgba(231, 76, 60, 0.15); }
 
 .search-floating { display: flex; gap: 8px; margin-bottom: 10px; }
 #search-input {
@@ -77,74 +73,45 @@ body.dark-mode #map { filter: invert(100%) hue-rotate(180deg) brightness(95%) co
 .filter-chip.active { background: #333; color: white; transform: scale(1.05); }
 body.dark-mode .filter-chip.active { background: var(--accent-color); }
 
-/* === LISTA DE ESTACIONES (FIX ALTURA) === */
+/* LISTA */
 .station-list-container {
-    pointer-events: auto;
-    flex: 1; /* Crece para ocupar todo el espacio restante hasta abajo */
-    min-height: 0; /* CRUCIAL para que el scroll interno funcione en Flexbox */
-    margin: 0 15px 20px 15px;
-    display: flex;
-    flex-direction: column;
-    /* max-height: 50vh; <-- ELIMINADO para que llegue al fondo */
-    transition: opacity 0.3s ease;
+    pointer-events: auto; flex: 1; min-height: 0; margin: 0 15px 20px 15px;
+    display: flex; flex-direction: column; transition: opacity 0.3s ease;
 }
 .station-list-container.hidden { display: none; }
-
 .list-header {
     font-size: 0.85rem; font-weight: 700; color: var(--text-sub);
     margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;
     background: var(--bg-card); padding: 5px 10px; border-radius: 8px; display: inline-block; width: fit-content;
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
-
-.stations-list-scroll {
-    overflow-y: auto; /* Scroll aquí dentro */
-    flex: 1; /* Ocupa todo el alto del contenedor padre */
-    padding-right: 5px;
-    scrollbar-width: thin;
-    padding-bottom: 20px; /* Un poco de aire al final */
-}
-
+.stations-list-scroll { overflow-y: auto; flex: 1; padding-right: 5px; scrollbar-width: thin; padding-bottom: 20px; }
 .list-item {
-    background: var(--bg-card);
-    margin-bottom: 8px;
-    padding: 12px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: transform 0.2s, box-shadow 0.2s;
-    border-left: 4px solid transparent;
+    background: var(--bg-card); margin-bottom: 8px; padding: 12px; border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05); cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+    transition: transform 0.2s, box-shadow 0.2s; border-left: 4px solid transparent;
 }
 .list-item:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 .list-item.green { border-left-color: #2ecc71; }
 .list-item.orange { border-left-color: #f39c12; }
 .list-item.red { border-left-color: #e74c3c; }
-
 .list-info h4 { margin: 0 0 4px 0; font-size: 0.95rem; color: var(--text-main); }
 .list-meta { font-size: 0.8rem; color: var(--text-sub); display: flex; gap: 8px; }
 .list-badge { background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px; font-weight: 600; }
 body.dark-mode .list-badge { background: rgba(255,255,255,0.1); }
 
-/* TARJETA ESTACIÓN */
+/* TARJETA */
 .station-card {
-    position: fixed; bottom: 20px; left: 20px; width: 400px; 
-    max-height: 70vh; 
+    position: fixed; bottom: 20px; left: 20px; width: 400px; max-height: 70vh; 
     background: var(--bg-card); color: var(--text-main); border-radius: 20px;
-    box-shadow: 0 10px 60px rgba(0,0,0,0.5); z-index: 99999;
-    padding: 20px; overflow-y: auto; display: block; 
+    box-shadow: 0 10px 60px rgba(0,0,0,0.5); z-index: 99999; padding: 20px; overflow-y: auto; display: block; 
 }
 .station-card.hidden { display: none !important; }
-
 .close-card-btn {
-    position: absolute; top: 15px; right: 15px;
-    background: rgba(0,0,0,0.05); border: none; width: 28px; height: 28px; border-radius: 50%;
+    position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.05); border: none; width: 28px; height: 28px; border-radius: 50%;
     cursor: pointer; color: var(--text-sub); font-weight: bold;
 }
 body.dark-mode .close-card-btn { background: rgba(255,255,255,0.1); }
-
 .station-header-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; padding-right: 30px; }
 .title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .station-title { font-size: 1.3rem; font-weight: 700; margin: 0; }
@@ -153,24 +120,16 @@ body.dark-mode .close-card-btn { background: rgba(255,255,255,0.1); }
 .station-subtitle { color: var(--text-sub); font-size: 0.9rem; }
 .station-capacity-badge { background: rgba(0,0,0,0.05); padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; color: var(--text-sub); }
 
-/* IA & RUTAS */
-.ai-planning-card {
-    background: var(--bg-card); border-radius: 16px; padding: 15px; margin: 15px 0;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05); border: 1px solid rgba(102, 126, 234, 0.1);
-}
+.ai-planning-card { background: var(--bg-card); border-radius: 16px; padding: 15px; margin: 15px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border: 1px solid rgba(102, 126, 234, 0.1); }
 .ai-header { display: flex; align-items: center; margin-bottom: 12px; }
 .ai-icon { font-size: 1.2rem; margin-right: 10px; background: rgba(102,126,234,0.1); padding: 6px; border-radius: 8px; }
 .ai-actions-grid { display: flex; flex-direction: column; gap: 10px; }
 .route-buttons-row { display: flex; gap: 10px; }
-
-.ai-action-btn { 
-    border: none; padding: 12px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: transform 0.1s; flex: 1; font-size: 0.9rem;
-}
+.ai-action-btn { border: none; padding: 12px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: transform 0.1s; flex: 1; font-size: 0.9rem; }
 .ai-action-btn:active { transform: scale(0.98); }
 .primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
 .secondary { background: rgba(102,126,234,0.1); color: var(--accent-color); border: 1px solid rgba(102,126,234,0.2); }
 body.dark-mode .secondary { background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.1); }
-
 .trip-result { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(0,0,0,0.05); font-size: 0.9rem; }
 .trip-result.hidden { display: none; }
 .status-pill { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; display: inline-block; margin-bottom: 5px; }
@@ -178,244 +137,102 @@ body.dark-mode .secondary { background: rgba(255,255,255,0.05); color: #fff; bor
 .status-orange { background: #ffedd5; color: #9a3412; } 
 .status-red { background: #fee2e2; color: #991b1b; }
 
-/* KPIS & CHARTS */
 .kpi-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
 .mini-kpi { background: rgba(0,0,0,0.05); padding: 10px; border-radius: 12px; text-align: center; }
 .mini-kpi .val { display: block; font-size: 1.5rem; font-weight: 700; }
 .chart-box { margin-bottom: 15px; }
 .chart-box h4 { font-size: 0.85rem; margin-bottom: 5px; color: var(--text-sub); }
 .chart-box canvas { height: 160px !important; }
-
 .popular-time { background: rgba(243, 156, 18, 0.1); color: #e67e22; padding: 10px; border-radius: 8px; font-size: 0.9rem; margin-bottom: 15px; border-left: 3px solid #e67e22; }
 .popular-time.hidden { display: none; }
 
-/* PANEL RUTA */
-/* CAMBIOS EN ROUTE PANEL PARA EL GRÁFICO */
+/* PANEL RUTA & ELEVACIÓN */
 .route-panel {
-    /* ... (Estilos anteriores) ... */
-    /* Modificamos para aceptar contenido vertical */
-    flex-direction: column; 
-    align-items: flex-end; 
-    gap: 8px;
-    width: 280px; /* Un poco más ancho para la gráfica */
-    /* ... */
+    position: absolute; top: 80px; right: 20px; z-index: 2005;
+    background: #222; color: white; padding: 12px 20px; border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3); 
+    display: flex; flex-direction: column; gap: 10px; width: 300px;
+    animation: slideInRight 0.3s ease;
 }
-
-/* Header interno del panel de ruta (icono y tiempo) */
-.route-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    justify-content: space-between;
-}
-
-/* Nueva caja para la gráfica de elevación */
-.elevation-box {
-    width: 100%;
-    height: 60px; /* Gráfica pequeña y elegante */
-    background: rgba(255,255,255,0.1);
-    border-radius: 8px;
-    padding: 5px;
-    margin-top: 5px;
-}
-.elevation-box.hidden { display: none; }
-.elevation-box canvas { width: 100% !important; height: 100% !important; }
 .route-panel.hidden { display: none !important; }
-.route-data { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
+.route-header { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+.route-icon { font-size: 1.5rem; margin-right: 10px; }
+.route-data { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; flex: 1; }
 .route-time { font-size: 1.1rem; font-weight: 700; }
 .route-dist { font-size: 0.85rem; color: #aaa; }
 .close-route-btn { background: rgba(255,255,255,0.2); border: none; color: white; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; }
+
+.elevation-box {
+    width: 100%; height: 80px; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 5px; display: block;
+}
+.elevation-box canvas { width: 100% !important; height: 100% !important; display: block; }
+.elevation-box.hidden { display: none; }
+
 @keyframes slideInRight { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
+/* LEYENDAS */
 .map-legend { position: absolute; bottom: 30px; right: 30px; background: var(--bg-card); color: var(--text-main); padding: 15px; border-radius: 12px; box-shadow: var(--shadow); z-index: 1000; }
 .legend-item { display: flex; align-items: center; margin-bottom: 5px; font-size: 0.85rem; }
 .legend-color { width: 14px; height: 14px; border-radius: 50%; margin-right: 8px; }
+.map-legend.hidden { display: none; }
+
+/* BARRA DE CALOR */
+.heatmap-gradient {
+    height: 10px; width: 100px; border-radius: 5px; margin: 5px 0;
+    background: linear-gradient(to right, blue, lime, red);
+}
 
 .toast { position: fixed; top: 20px; right: 20px; background: white; padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 10000; display: none; border-left: 5px solid #667eea; }
 
-
-/* === ESTILOS MÓVILES (DRAGGABLE) === */
+/* MÓVIL */
 @media (max-width: 768px) {
-    /* CLASE MAESTRA PARA PANELES DESLIZANTES */
     .bottom-sheet {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        width: 100%;
-        height: 85vh; /* Altura máxima */
-        background: var(--bg-card);
-        border-radius: 20px 20px 0 0;
-        box-shadow: 0 -5px 30px rgba(0,0,0,0.2);
-        z-index: 2000;
-        
-        /* ESTADO INICIAL: Empujado hacia abajo (solo asoma el header) */
-        transform: translateY(calc(100% - 140px)); 
-        transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-        
-        display: flex;
-        flex-direction: column;
+        position: fixed; left: 0; right: 0; bottom: 0; width: 100%; height: 85vh;
+        background: var(--bg-card); border-radius: 20px 20px 0 0;
+        box-shadow: 0 -5px 30px rgba(0,0,0,0.2); z-index: 2000;
+        transform: translateY(calc(100% - 140px)); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        display: flex; flex-direction: column;
     }
-
-    /* Clase para desactivar animación MIENTRAS arrastras (importante para que no vaya lento) */
-    .is-dragging {
-        transition: none !important;
-    }
-
-    /* EL PANEL LATERAL AHORA ES UN BOTTOM SHEET */
-    .sidebar-wrapper {
-        top: auto; /* Anulamos estilos de escritorio */
-        height: 85vh;
-        transform: translateY(calc(100% - 140px)); /* Colapsado inicial */
-    }
-
-    /* LA TARJETA DE ESTACIÓN AHORA ES UN BOTTOM SHEET */
+    .is-dragging { transition: none !important; }
+    .sidebar-wrapper { top: auto; height: 85vh; transform: translateY(calc(100% - 140px)); }
     .station-card {
-        top: auto;
-        left: 0;
-        width: 100%;
-        max-height: 85vh; /* Igual que el sidebar */
-        transform: translateY(110%); /* Oculto totalmente abajo */
-        display: flex !important; /* Siempre visible para el DOM, solo movido */
-        z-index: 2100; /* Por encima del sidebar */
+        top: auto; left: 0; width: 100%; max-height: 85vh; transform: translateY(110%); display: flex !important; z-index: 2100;
     }
-
-    /* Cuando la tarjeta está activa (visible pero colapsada o full) */
-    .station-card.active {
-        transform: translateY(calc(100% - 200px)); /* Asoma un poco más */
-    }
-    
-    /* ZONA TÁCTIL (HEADER) */
-    .drag-zone {
-        padding: 10px;
-        cursor: grab;
-        flex-shrink: 0; /* No encoger */
-        background: var(--bg-card); /* Tapar contenido al hacer scroll */
-        border-radius: 20px 20px 0 0;
-    }
-
-    /* EL CONTENIDO SCROLLABLE */
-    .station-list-container, .card-content {
-        overflow-y: auto;
-        flex: 1;
-        padding-bottom: 50px;
-        overscroll-behavior: contain; /* Evita que se mueva la página de fondo */
-    }
-    
-    /* INDICADOR VISUAL (LA BARRA GRIS) */
-    .drag-handle {
-        width: 40px;
-        height: 5px;
-        background: #e0e0e0;
-        border-radius: 10px;
-        margin: 5px auto 10px auto;
-    }
-    
-    /* Ocultar elementos de escritorio que molesten */
-    .route-panel { top: 60px; right: 10px; z-index: 1000; }
+    .drag-zone { padding: 10px; cursor: grab; flex-shrink: 0; background: var(--bg-card); border-radius: 20px 20px 0 0; }
+    .station-list-container, .card-content { overflow-y: auto; flex: 1; padding-bottom: 50px; overscroll-behavior: contain; }
+    .drag-handle { width: 40px; height: 5px; background: #e0e0e0; border-radius: 10px; margin: 5px auto 10px auto; }
+    .route-panel { top: 60px; right: 10px; z-index: 1000; width: 260px; }
+    .map-legend { bottom: 150px; right: 20px; padding: 10px; }
 }
 
-/* === ESCRITORIO (SOLUCIÓN FINAL Y FIJA) === */
+/* ESCRITORIO */
 @media (min-width: 769px) {
-    /* 1. EL PANEL LATERAL (CONTENEDOR) */
     .sidebar-wrapper {
-        position: fixed !important;
-        top: 20px !important;
-        left: 20px !important;
-        bottom: 20px !important;
-        width: 400px !important; /* ANCHO FIJO */
-        
-        display: flex !important;
-        flex-direction: column !important;
-        
-        background: transparent !important;
-        pointer-events: none; /* Dejar pasar clicks en huecos */
-        z-index: 1000;
-        transform: none !important;
+        position: fixed !important; top: 20px !important; left: 20px !important; bottom: 20px !important;
+        width: 400px !important; display: flex !important; flex-direction: column !important;
+        background: transparent !important; pointer-events: none; z-index: 1000; transform: none !important;
     }
-
-    /* Ocultar tirador de móvil */
     .drag-zone { display: none !important; }
-
-    /* 2. ZONA SUPERIOR (Buscador y Filtros) */
     .top-controls {
-        pointer-events: auto;
-        flex-shrink: 0; /* No encogerse */
-        background: var(--bg-card);
-        border-radius: 16px;
-        padding: 20px;
-        box-shadow: var(--shadow);
-        margin-bottom: 15px; /* Separación */
-        z-index: 1001;
-        position: relative;
+        pointer-events: auto; flex-shrink: 0; background: var(--bg-card);
+        border-radius: 16px; padding: 20px; box-shadow: var(--shadow);
+        margin-bottom: 15px; z-index: 1001; position: relative;
     }
-
-    /* 3. LISTA DE ESTACIONES (Fondo) */
     .station-list-container {
-        pointer-events: auto;
-        /* CAMBIO: Flex-grow 1 es correcto, pero añadimos overflow hidden al padre */
-        flex: 1; 
-        background: var(--bg-card);
-        border-radius: 16px;
-        box-shadow: var(--shadow);
-        margin: 0 !important;
-        padding: 0 !important;
-        display: flex !important;
-        flex-direction: column;
-        position: relative;
-        overflow: hidden; /* Asegura que el hijo scrollee dentro */
-        min-height: 0;    /* Truco de Flexbox para que el scroll funcione */
+        pointer-events: auto; flex: 1; background: var(--bg-card);
+        border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; margin: 0 !important; padding: 0 !important;
+        display: flex !important; flex-direction: column; position: relative; min-height: 0;
     }
-    
-    .stations-list-scroll {
-        /* CAMBIO: Altura 100% y padding inferior extra para que no se corte el último */
-        height: 100%;
-        overflow-y: auto;
-        padding: 10px 10px 40px 20px; /* 40px abajo da aire al final */
-    }
-
-    /* 4. TARJETA DE ESTACIÓN (SUPERPUESTA) */
-    /* Aquí estaba el fallo: hay que darle coordenadas fijas para que no ocupe 100% */
+    .stations-list-scroll { height: 100%; overflow-y: auto; padding: 10px 10px 40px 20px; }
     .station-card {
-        pointer-events: auto;
-        position: fixed !important; 
-        
-        /* Posición fija alineada con el sidebar */
-        left: 20px !important; 
-        width: 400px !important;
-        
-        /* AJUSTE FINO: Empieza justo debajo del buscador */
-        top: 235px !important; 
-        bottom: 20px !important; /* Llega hasta abajo */
-        
-        background: var(--bg-card) !important;
-        border-radius: 16px !important;
-        box-shadow: 0 -5px 30px rgba(0,0,0,0.15) !important;
-        z-index: 2000 !important;
-        
-        transform: none !important;
-        display: flex !important;
-        flex-direction: column;
-        padding: 0 !important;
-        max-height: none !important;
+        pointer-events: auto; position: fixed !important; left: 20px !important; width: 400px !important;
+        top: 235px !important; bottom: 20px !important; background: var(--bg-card) !important;
+        border-radius: 16px !important; box-shadow: 0 -5px 30px rgba(0,0,0,0.15) !important;
+        z-index: 2000 !important; transform: none !important; display: flex !important; flex-direction: column;
+        padding: 0 !important; max-height: none !important;
     }
-    
-    /* Asegurarse que la lista se oculte bien cuando JS se lo diga */
     .station-list-container.hidden { display: none !important; }
-
-    /* Contenido scrolleable dentro de la tarjeta */
-    .card-content {
-        padding: 20px;
-        overflow-y: auto;
-        height: 100%;
-    }
-
-    /* Botón cerrar visible en escritorio */
-    .close-card-btn {
-        top: 15px; right: 15px; display: block;
-    }
-
-    /* Ocultar de verdad */
+    .card-content { padding: 20px; overflow-y: auto; height: 100%; }
+    .close-card-btn { top: 15px; right: 15px; display: block; }
     .station-card.hidden { display: none !important; }
 }
