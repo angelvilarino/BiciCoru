@@ -2,8 +2,8 @@ name: 🔮 Generar Predicciones
 
 on:
   schedule:
-    - cron: '0 */2 * * *'  # Se ejecuta cada 2 horas (ej: 14:00, 16:00...)
-  workflow_dispatch:      # Botón manual
+    - cron: '0 */2 * * *'  # Cada 2 horas
+  workflow_dispatch:
 
 jobs:
   predict:
@@ -23,12 +23,12 @@ jobs:
           cache: 'pip'
       
       - name: Install dependencies
-        # Esto ahora será rapidísimo sin Darts
         run: pip install -r data_engine/requirements.txt
       
       - name: Generate predictions
         env:
+          # Usamos explícitamente la SERVICE KEY para tener permisos de escritura
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
         run: python data_engine/predictor.py

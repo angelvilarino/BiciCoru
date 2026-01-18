@@ -2,7 +2,7 @@ name: 📥 Recolectar Datos
 
 on:
   schedule:
-    - cron: '*/30 * * * *'  # Cada 30 minutos (2,880 min/mes → 1,440 min/mes)
+    - cron: '*/30 * * * *'  # Cada 30 minutos
   workflow_dispatch:
 
 jobs:
@@ -24,7 +24,8 @@ jobs:
       
       - name: Collect data
         env:
+          # Usamos explícitamente la SERVICE KEY para tener permisos de escritura
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
         run: python data_engine/collector.py
