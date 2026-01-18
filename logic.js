@@ -1,23 +1,26 @@
 const SUPABASE_URL = 'https://nkfvkszhrxwbippbntri.supabase.co';
+// Clave pública (ANON) para leer
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rZnZrc3pocnh3YmlwcGJudHJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY2NzE2NzMsImV4cCI6MjA4MjI0NzY3M30.ZW3bzvADK-jgMzSDYhCW65_227UMoJAr1CO_XbhO8Ow';
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let map;
 let markers = {};
+let heatLayer = null; // NUEVO: Capa de calor
 let stationsData = [];
 let historyChart = null;
 let trendChart = null;
+let elevationChart = null; // NUEVO: Gráfica de elevación
 let currentStation = null;
 let currentFilter = 'all';
 let userLocation = null;
 let routingControl = null;
 let userGeoMarker = null;
 let currentDestCoords = null;
-let currentRouteMode = 'walk'; // NUEVO: Para recordar el modo activo
+let currentRouteMode = 'walk'; 
 
 async function init() {
-    console.log("🚀 Iniciando BiciAI v3.0 (Mobile Physics)...");
+    console.log("🚀 Iniciando BiciAI v4.0 (Heatmap + Elevation)...");
     initMap();
     setupFilters();
     setupTheme();
@@ -28,7 +31,7 @@ async function init() {
     const btnGeo = document.getElementById('btn-geo');
     if (btnGeo) btnGeo.addEventListener('click', () => {
         map.locate({setView: true, maxZoom: 16});
-        forceLocate(); // Forzar petición extra por si acaso
+        forceLocate(); 
     });
 
     document.getElementById('btn-stop-route').addEventListener('click', () => clearUI(false));
@@ -45,14 +48,11 @@ async function init() {
         updateStationsList(); 
     });
 
-    // INICIAR LÓGICA MÓVIL
-    // SOLO activar físicas si es móvil
     if (window.innerWidth <= 768) {
         setupDraggableSheet('main-panel', 'main-drag-zone', 140);
         setupDraggableSheet('station-card', 'card-drag-zone', 250);
     }
     
-    // Pedir GPS al arrancar
     setTimeout(forceLocate, 1000);
 }
 
@@ -66,116 +66,184 @@ function initMap() {
     map.on('click', () => clearUI(true));
 }
 
-function updateCharts(history, predictions) {
-    const isDark = document.body.classList.contains('dark-mode');
-    const textColor = isDark ? '#fff' : '#333';
-    const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
-
-    // --- GRÁFICA 1: HISTORIAL ---
-    const ctxH = document.getElementById('historyChart').getContext('2d');
-    if (historyChart) historyChart.destroy();
+// === NUEVO: Lógica de Mapa de Calor ===
+function updateMap() {
+    // 1. Limpiar marcadores normales
+    for (let id in markers) map.removeLayer(markers[id]);
+    markers = {};
     
-    // Preparar datos (Labels son timestamps completos)
-    const hLabels = history.map(d => new Date(d.timestamp));
-    const hData = history.map(d => d.available_bikes);
-    const hasData = hData.length > 0;
+    // 2. Limpiar capa de calor si existe
+    if (heatLayer) {
+        map.removeLayer(heatLayer);
+        heatLayer = null;
+    }
 
-    historyChart = new Chart(ctxH, {
-        type: 'line',
-        data: { 
-            labels: hLabels, 
-            datasets: [{ 
-                label: 'Nº Bicicletas',
-                data: hData, 
-                borderColor: '#667eea', 
-                backgroundColor: 'rgba(102,126,234,0.1)', 
-                fill: true, 
-                tension: 0.3,
-                pointRadius: 0, // Quitamos puntos para que se vea más limpio con tantas horas
-                pointHoverRadius: 4
-            }] 
-        },
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            plugins: { 
-                legend: { display: false },
-                title: { 
-                    display: true, 
-                    text: hasData ? 'Historial (24h)' : 'Sin datos recientes', 
-                    color: textColor
-                },
-                tooltip: { 
-                    mode: 'index', intersect: false,
-                    callbacks: {
-                        title: (ctx) => {
-                            // Formato tooltip: 14:30
-                            const date = new Date(ctx[0].label);
-                            return date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                        }
-                    }
-                } 
-            },
-            scales: { 
-                x: { 
-                    type: 'category', // Importante
-                    ticks: { 
-                        color: textColor, 
-                        maxRotation: 0,
-                        maxTicksLimit: 24, // Intentar mostrar hasta 24 marcas
-                        callback: function(val, index) {
-                            // TRUCO: Solo mostrar la etiqueta si es una hora en punto (aprox)
-                            // "this.getLabelForValue(val)" nos da la fecha original del array hLabels
-                            const date = new Date(this.getLabelForValue(val));
-                            const minutes = date.getMinutes();
-                            
-                            // Mostramos si los minutos son 0, o cercanos a 0 (ej. 0-10) si los datos no son exactos
-                            // Y evitamos mostrar demasiadas pegadas.
-                            if (index % 4 === 0) { // Ajuste para que no se amontonen (muestra 1 de cada 4 datos aprox)
-                                return date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                            }
-                            return null; // Ocultar resto
-                        }
-                    },
-                    grid: { display: false }
-                }, 
-                y: { 
-                    ticks: { color: textColor, stepSize: 1 }, 
-                    grid: { color: gridColor }, 
-                    beginAtZero: true 
-                } 
-            }
-        }
+    // A. MODO MAPA DE CALOR
+    if (currentFilter === 'heat') {
+        // Preparamos los datos: [lat, lng, intensidad]
+        // Intensidad basada en bicis disponibles (más bicis = más rojo)
+        const heatPoints = stationsData.map(s => {
+            // Intensidad normalizada: si hay 10 bicis o más, es el máximo (1.0)
+            const intensity = Math.min(s.available_bikes / 10, 1.0);
+            return [s.latitude, s.longitude, intensity];
+        });
+
+        heatLayer = L.heatLayer(heatPoints, {
+            radius: 25,
+            blur: 15,
+            maxZoom: 17,
+            gradient: {0.4: 'blue', 0.65: 'lime', 1: 'red'}
+        }).addTo(map);
+        
+        showToast("🔥 Mapa de Calor activado");
+        return; // No pintamos marcadores en este modo
+    }
+
+    // B. MODO MARCADORES NORMAL
+    const favs = getFavorites();
+
+    stationsData.forEach(s => {
+        if (currentFilter === 'bikes' && s.available_bikes === 0) return;
+        if (currentFilter === 'slots' && s.available_slots === 0) return;
+        if (currentFilter === 'fav' && !favs.includes(String(s.station_id))) return;
+
+        const color = s.available_bikes === 0 ? '#e74c3c' : (s.available_bikes < 5 ? '#f39c12' : '#2ecc71');
+        
+        const m = L.circleMarker([s.latitude, s.longitude], {
+            radius: 8, fillColor: color, color: "#fff", weight: 2, fillOpacity: 0.9
+        }).addTo(map);
+
+        m.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            loadStationDetails(s);
+        });
+        
+        markers[s.station_id] = m;
     });
+}
 
-    // --- GRÁFICA 2: PREDICCIÓN (Sin cambios o ajustes similares si quieres) ---
-    const ctxT = document.getElementById('trendChart').getContext('2d');
-    if (trendChart) trendChart.destroy();
+// === CÁLCULO DE RUTA CON ELEVACIÓN ===
+function drawRoute(dest, mode = 'walk') {
+    if (!userLocation) { map.locate(); showToast("📍 Buscando ubicación..."); return; }
     
-    const pLabels = predictions.map(d => new Date(d.prediction_date).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
-    const pData = predictions.map(d => d.predicted_bikes);
+    currentRouteMode = mode;
+    currentDestCoords = L.latLng(dest.latitude, dest.longitude);
 
-    trendChart = new Chart(ctxT, {
-        type: 'bar',
-        data: { 
-            labels: pLabels, 
-            datasets: [{ 
-                label: 'Predicción', 
-                data: pData, 
-                backgroundColor: '#667eea', 
-                borderRadius: 4 
-            }] 
+    if (routingControl) {
+        try { map.removeControl(routingControl); } catch(e){}
+        routingControl = null;
+    }
+    
+    // Ocultar gráfica anterior
+    document.getElementById('elevation-box').classList.add('hidden');
+    
+    let serviceUrl = mode === 'walk' 
+        ? 'https://routing.openstreetmap.de/routed-foot/route/v1' 
+        : 'https://routing.openstreetmap.de/routed-bike/route/v1';
+    let color = mode === 'walk' ? '#667eea' : '#e67e22';
+    let icon = mode === 'walk' ? '🚶' : '🚴';
+
+    routingControl = L.Routing.control({
+        waypoints: [userLocation, currentDestCoords],
+        router: L.Routing.osrmv1({ serviceUrl: serviceUrl, profile: 'driving' }),
+        lineOptions: { 
+            styles: [{ color: color, opacity: 0.8, weight: 6 }],
+            extendToWaypoints: false, missingRouteTolerance: 10
         },
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            plugins: { 
-                legend: { display: false },
-                title: { display: true, text: 'Predicción Futura', color: textColor }
-            },
-            scales: { 
-                x: { ticks: { color: textColor, maxRotation: 0, autoSkip: true }, grid: { display: false } }, 
-                y: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true } 
+        createMarker: () => null, addWaypoints: false, fitSelectedRoutes: true, show: false
+    }).addTo(map);
+    
+    const panel = document.getElementById('route-panel');
+    panel.classList.remove('hidden');
+    document.getElementById('route-icon').textContent = icon;
+    document.getElementById('route-time').textContent = "Calc...";
+    document.getElementById('route-dist').textContent = "";
+
+    routingControl.on('routesfound', async e => {
+        const r = e.routes[0];
+        const mins = Math.round(r.summary.totalTime / 60);
+        const km = (r.summary.totalDistance / 1000).toFixed(1);
+        
+        document.getElementById('route-time').textContent = `${mins} min`;
+        document.getElementById('route-dist').textContent = `(${km} km)`;
+
+        // === CÁLCULO DE ELEVACIÓN (HACK API EXTERNA) ===
+        // OSRM no da elevación, así que cogemos las coordenadas de la ruta
+        // y consultamos a open-elevation.com
+        calculateElevationProfile(r.coordinates);
+    });
+    
+    routingControl.on('routingerror', function(e) {
+        document.getElementById('route-time').textContent = "Error";
+        showToast("Error de conexión con el servidor de rutas.");
+    });
+}
+
+// === FUNCIÓN MÁGICA DE ELEVACIÓN ===
+async function calculateElevationProfile(coords) {
+    const box = document.getElementById('elevation-box');
+    
+    // 1. Muestrear coordenadas (coger 1 de cada 10 para no saturar la API)
+    // Máximo 40 puntos para que sea rápido
+    const step = Math.ceil(coords.length / 40);
+    const sample = coords.filter((_, i) => i % step === 0);
+    
+    // Formato API Open Elevation
+    const locations = sample.map(c => ({ lat: c.lat, lon: c.lng }));
+    
+    try {
+        // Mostrar caja vacía o con loader si quieres
+        box.classList.remove('hidden');
+        
+        const response = await fetch('https://api.open-elevation.com/api/v1/lookup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ locations: locations })
+        });
+        
+        const data = await response.json();
+        const elevations = data.results.map(r => r.elevation);
+        
+        drawElevationChart(elevations);
+        
+    } catch (e) {
+        console.warn("No se pudo obtener elevación:", e);
+        box.classList.add('hidden'); // Ocultar si falla
+    }
+}
+
+function drawElevationChart(elevations) {
+    const ctx = document.getElementById('elevationChart').getContext('2d');
+    if (elevationChart) elevationChart.destroy();
+    
+    // Crear etiquetas falsas (progreso ruta)
+    const labels = elevations.map((_, i) => i === 0 ? 'Inicio' : (i === elevations.length - 1 ? 'Fin' : ''));
+
+    elevationChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Altitud (m)',
+                data: elevations,
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                fill: true,
+                tension: 0.4, // Suavizar curvas
+                pointRadius: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { enabled: true } },
+            scales: {
+                x: { display: false }, // Ocultar eje X
+                y: { 
+                    display: true,
+                    ticks: { color: '#888', font: {size: 10} },
+                    grid: { display: false }
+                }
             }
         }
     });
@@ -220,11 +288,18 @@ function updateStationsList() {
     let filtered = stationsData;
     const favs = getFavorites();
 
+    if (window.searchTerm) {
+        filtered = filtered.filter(s => s.name.toLowerCase().includes(window.searchTerm));
+    }
+
     if (currentFilter === 'bikes') filtered = filtered.filter(s => s.available_bikes > 0);
     if (currentFilter === 'slots') filtered = filtered.filter(s => s.available_slots > 0);
     if (currentFilter === 'fav') {
         filtered = filtered.filter(s => favs.includes(String(s.station_id)));
         headerText.textContent = `⭐ Tus Favoritas (${filtered.length})`;
+    } else if (currentFilter === 'heat') {
+         headerText.textContent = `🔥 Mapa de Calor Activado`;
+         // En modo calor mostramos todas en la lista igualmente
     } else {
         headerText.textContent = `📍 Más cercanas (${filtered.length})`;
     }
@@ -274,31 +349,6 @@ function updateStationsList() {
     });
 }
 
-function updateMap() {
-    for (let id in markers) map.removeLayer(markers[id]);
-    markers = {};
-    const favs = getFavorites();
-
-    stationsData.forEach(s => {
-        if (currentFilter === 'bikes' && s.available_bikes === 0) return;
-        if (currentFilter === 'slots' && s.available_slots === 0) return;
-        if (currentFilter === 'fav' && !favs.includes(String(s.station_id))) return;
-
-        const color = s.available_bikes === 0 ? '#e74c3c' : (s.available_bikes < 5 ? '#f39c12' : '#2ecc71');
-        
-        const m = L.circleMarker([s.latitude, s.longitude], {
-            radius: 8, fillColor: color, color: "#fff", weight: 2, fillOpacity: 0.9
-        }).addTo(map);
-
-        m.on('click', (e) => {
-            L.DomEvent.stopPropagation(e);
-            loadStationDetails(s);
-        });
-        
-        markers[s.station_id] = m;
-    });
-}
-
 function getFavorites() { return JSON.parse(localStorage.getItem('favStations') || '[]'); }
 function toggleFavorite() {
     if (!currentStation) return;
@@ -328,115 +378,41 @@ function updateColorClass(element, value) {
     else element.classList.add('text-danger');
 }
 
-// === CÁLCULO DE RUTA (SOLUCIÓN DEFINITIVA) ===
-function drawRoute(dest, mode = 'walk') {
-    if (!userLocation) { map.locate(); showToast("📍 Buscando ubicación..."); return; }
-    
-    // Guardar modo actual para recálculos
-    currentRouteMode = mode;
-    currentDestCoords = L.latLng(dest.latitude, dest.longitude);
-
-    // Limpieza
-    if (routingControl) {
-        try { map.removeControl(routingControl); } catch(e){}
-        routingControl = null;
-    }
-    
-    // === CONFIGURACIÓN DE SERVIDORES ESPECIALIZADOS ===
-    let serviceUrl, color, icon;
-    
-    if (mode === 'walk') {
-        // Servidor dedicado a Peatones
-        serviceUrl = 'https://routing.openstreetmap.de/routed-foot/route/v1';
-        color = '#667eea'; // Azul
-        icon = '🚶';
-    } else {
-        // Servidor dedicado a Bicis
-        serviceUrl = 'https://routing.openstreetmap.de/routed-bike/route/v1';
-        color = '#e67e22'; // Naranja
-        icon = '🚴';
-    }
-
-    routingControl = L.Routing.control({
-        waypoints: [userLocation, currentDestCoords],
-        router: L.Routing.osrmv1({ 
-            serviceUrl: serviceUrl,
-            // TRUCO: Estos servidores dedicados esperan 'driving' en la URL aunque sean de bici/pie
-            profile: 'driving' 
-        }),
-        lineOptions: { 
-            styles: [{ color: color, opacity: 0.8, weight: 6 }],
-            extendToWaypoints: false,
-            missingRouteTolerance: 10
-        },
-        createMarker: () => null, 
-        addWaypoints: false, 
-        fitSelectedRoutes: true, 
-        show: false
-    }).addTo(map);
-    
-    const panel = document.getElementById('route-panel');
-    panel.classList.remove('hidden');
-    document.getElementById('route-icon').textContent = icon;
-    document.getElementById('route-time').textContent = "Calc...";
-    document.getElementById('route-dist').textContent = "";
-
-    routingControl.on('routesfound', e => {
-        const s = e.routes[0].summary;
-        const mins = Math.round(s.totalTime / 60);
-        const km = (s.totalDistance / 1000).toFixed(1);
-        
-        document.getElementById('route-time').textContent = `${mins} min`;
-        document.getElementById('route-dist').textContent = `(${km} km)`;
-    });
-    
-    routingControl.on('routingerror', function(e) {
-        console.error("Routing error:", e);
-        document.getElementById('route-time').textContent = "Error";
-        showToast("Error de conexión con el servidor de rutas.");
-    });
-}
-
 async function calcIA(dest) {
     const res = document.getElementById('trip-result');
     const load = document.getElementById('trip-loader');
     const cont = document.getElementById('trip-content');
     
-    // Mostrar contenedor y spinner, limpiar contenido anterior
     res.classList.remove('hidden'); 
     load.classList.remove('hidden'); 
     cont.innerHTML = '';
 
     if (!userLocation) { 
         map.locate(); 
-        load.classList.add('hidden'); // Ocultar spinner si falla
+        load.classList.add('hidden'); 
         cont.innerHTML = `<div style="color:var(--text-sub)"><i class="ph ph-warning"></i> Falta ubicación</div>`; 
         return; 
     }
     
     try {
-        // 1. Calcular tiempo de llegada estimado
         const straightDistKm = userLocation.distanceTo(L.latLng(dest.latitude, dest.longitude)) / 1000;
-        const realDistKm = straightDistKm * 1.4; // Factor de corrección callejeo
-        const speedKmH = 4.8; // Velocidad promedio caminando
+        const realDistKm = straightDistKm * 1.4;
+        const speedKmH = 4.8; 
         const mins = Math.round((realDistKm / speedKmH) * 60);
         
         const arrival = new Date(); 
         arrival.setMinutes(arrival.getMinutes() + mins);
         
-        // 2. Consultar Supabase
         const { data, error } = await client.from('predicciones').select('predicted_bikes')
             .eq('station_id', dest.station_id)
             .gte('prediction_date', arrival.toISOString())
             .limit(1);
         
-        // --- FIX: OCULTAR SPINNER SIEMPRE AQUÍ ---
         load.classList.add('hidden');
 
         if (error) throw error;
         
-        // 3. Interpretar datos
-        let slots = dest.available_slots; // Por defecto usamos datos actuales si no hay predicción
+        let slots = dest.available_slots;
         let predictedBikes = dest.available_bikes;
 
         if (data && data.length > 0) {
@@ -444,7 +420,6 @@ async function calcIA(dest) {
             slots = dest.total_capacity - predictedBikes;
         }
         
-        // 4. Generar UI
         const color = slots > 2 ? 'green' : (slots > 0 ? 'orange' : 'red');
         const txt = slots > 2 ? 'Alta Probabilidad' : (slots > 0 ? 'Riesgo Moderado' : 'Muy difícil');
         const icon = slots > 2 ? 'check-circle' : (slots > 0 ? 'warning' : 'x-circle');
@@ -463,7 +438,6 @@ async function calcIA(dest) {
 
     } catch(e) { 
         console.error(e);
-        // --- FIX: OCULTAR SPINNER EN CASO DE ERROR ---
         load.classList.add('hidden');
         cont.innerHTML = `<div style="color:#e74c3c; font-size:0.9rem;">
             <i class="ph ph-warning-circle"></i> No se pudo calcular la predicción
@@ -471,27 +445,22 @@ async function calcIA(dest) {
     }
 }
 
-// 1. CARGA DE DATOS REALES (Últimas 24h)
 async function loadRealCharts(stationId) {
     console.log(`📊 Cargando historial 24h para estación ${stationId}...`);
     
-    // Calcular fecha de ayer
     const yesterday = new Date();
     yesterday.setHours(yesterday.getHours() - 24);
     
-    // Pedir datos DESDE ayer (gte)
     const { data: rawHistory, error: hError } = await client.from('snapshots')
         .select('timestamp, available_bikes')
         .eq('station_id', stationId)
         .gte('timestamp', yesterday.toISOString()) 
-        .order('timestamp', { ascending: true }); // Ordenados por tiempo
+        .order('timestamp', { ascending: true });
 
     if (hError) console.error("❌ Error Historial:", hError);
     
     const historyData = rawHistory || [];
-    console.log(`✅ Puntos encontrados: ${historyData.length}`);
 
-    // Cargar predicciones
     const { data: predData } = await client.from('predicciones')
         .select('prediction_date, predicted_bikes')
         .eq('station_id', stationId)
@@ -502,9 +471,7 @@ async function loadRealCharts(stationId) {
     calculatePopularTime(historyData);
 }
 
-// 2. MOSTRAR TARJETA (Ocultando la lista de abajo)
 function loadStationDetails(s) {
-    // TRUCO VISUAL: Ocultamos la lista para que la tarjeta ocupe su lugar perfecto
     document.getElementById('station-list-container').classList.add('hidden'); 
     
     const card = document.getElementById('station-card');
@@ -512,7 +479,6 @@ function loadStationDetails(s) {
     
     currentStation = s;
     
-    // Rellenar textos...
     document.getElementById('station-name').textContent = s.name;
     document.getElementById('station-status').textContent = s.available_bikes > 0 ? '🟢 Operativa' : '🔴 Sin bicis';
     document.getElementById('station-capacity').textContent = `Cap: ${s.total_capacity}`;
@@ -526,7 +492,6 @@ function loadStationDetails(s) {
     updateColorClass(bikesEl, s.available_bikes);
     updateColorClass(slotsEl, s.available_slots);
 
-    // Botones (clonar para limpiar eventos)
     const btnWalk = document.getElementById('btn-route-walk');
     const newWalk = btnWalk.cloneNode(true);
     btnWalk.parentNode.replaceChild(newWalk, btnWalk);
@@ -543,12 +508,10 @@ function loadStationDetails(s) {
     newIA.addEventListener('click', () => calcIA(s));
     document.getElementById('trip-result').classList.add('hidden');
 
-    // MÓVIL
     if (window.innerWidth <= 768) {
         const visibleHeight = 350; 
         const targetY = card.offsetHeight - visibleHeight;
         card.style.transform = `translateY(${targetY}px)`;
-        // Colapsar panel principal
         const mainPanel = document.getElementById('main-panel');
         mainPanel.style.transform = `translateY(${mainPanel.offsetHeight - 140}px)`;
     }
@@ -557,18 +520,17 @@ function loadStationDetails(s) {
     setTimeout(() => loadRealCharts(s.station_id), 100);
 }
 
-// 3. CERRAR UI (Mostrar lista de nuevo)
 function clearUI(closeCard = true) {
     if (routingControl) { 
         try { map.removeControl(routingControl); } catch(e){}
         routingControl = null; 
     }
     document.getElementById('route-panel').classList.add('hidden');
+    document.getElementById('elevation-box').classList.add('hidden');
     currentDestCoords = null;
     
     if (closeCard) {
         document.getElementById('station-card').classList.add('hidden');
-        // IMPORTANTE: Volver a mostrar la lista al cerrar la tarjeta
         document.getElementById('station-list-container').classList.remove('hidden'); 
         currentStation = null;
     }
@@ -576,17 +538,11 @@ function clearUI(closeCard = true) {
 
 function calculatePopularTime(history) {
     const box = document.getElementById('popular-time-box');
-    
-    // Si no hay suficientes datos, ocultamos y salimos
-    if (!history || history.length < 5) { 
-        box.classList.add('hidden'); 
-        return; 
-    }
+    if (!history || history.length < 5) { box.classList.add('hidden'); return; }
     
     let minBikes = 999;
     let worstTime = null;
     
-    // Buscamos el momento con menos bicis
     history.forEach(h => {
         if (h.available_bikes < minBikes) {
             minBikes = h.available_bikes;
@@ -594,11 +550,8 @@ function calculatePopularTime(history) {
         }
     });
 
-    // Solo mostramos si realmente baja mucho (ej: menos de 2 bicis)
-    // O si quieres mostrar siempre el mínimo, quita la condición "minBikes < 3"
     if (worstTime) {
         box.classList.remove('hidden');
-        // Texto profesional con icono Phosphor
         box.innerHTML = `
             <div style="display:flex; align-items:center; gap:8px;">
                 <i class="ph ph-clock" style="font-size:1.2rem;"></i>
@@ -615,15 +568,11 @@ function updateCharts(history, predictions) {
     const textColor = isDark ? '#fff' : '#333';
     const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
 
-    // --- GRÁFICA 1: HISTORIAL ---
     const ctxH = document.getElementById('historyChart').getContext('2d');
     if (historyChart) historyChart.destroy();
     
-    // Preparar datos
-    const hLabels = history.map(d => new Date(d.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+    const hLabels = history.map(d => new Date(d.timestamp));
     const hData = history.map(d => d.available_bikes);
-    
-    // Si no hay datos, ponemos un array vacío para que no falle, pero el título avisará
     const hasData = hData.length > 0;
 
     historyChart = new Chart(ctxH, {
@@ -631,13 +580,11 @@ function updateCharts(history, predictions) {
         data: { 
             labels: hLabels, 
             datasets: [{ 
-                label: 'Nº Bicicletas Disponibles', // ETIQUETA CLARA
+                label: 'Nº Bicicletas',
                 data: hData, 
                 borderColor: '#667eea', 
                 backgroundColor: 'rgba(102,126,234,0.1)', 
-                fill: true, 
-                tension: 0.3,
-                pointRadius: hasData ? 3 : 0
+                fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 4
             }] 
         },
         options: { 
@@ -647,31 +594,37 @@ function updateCharts(history, predictions) {
                 legend: { display: false },
                 title: { 
                     display: true, 
-                    // TÍTULO EXPLÍCITO
-                    text: hasData ? 'Historial: Bicicletas (últimas 24h)' : 'Sin datos de historial recientes', 
-                    color: textColor,
-                    font: { size: 14 }
+                    text: hasData ? 'Historial (24h)' : 'Sin datos recientes', 
+                    color: textColor
                 },
                 tooltip: { 
                     mode: 'index', intersect: false,
                     callbacks: {
-                        label: (ctx) => `🚲 ${ctx.raw} bicis disponibles`
+                        title: (ctx) => {
+                            const date = new Date(ctx[0].label);
+                            return date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                        }
                     }
                 } 
             },
             scales: { 
-                x: { ticks: { color: textColor, maxTicksLimit: 6 }, grid: { display: false } }, 
-                y: { 
-                    ticks: { color: textColor, stepSize: 1 }, 
-                    grid: { color: gridColor }, 
-                    beginAtZero: true,
-                    title: { display: true, text: 'Cantidad Bicis', color: textColor } // Eje Y explicado
-                } 
+                x: { 
+                    type: 'category', 
+                    ticks: { 
+                        color: textColor, maxRotation: 0, maxTicksLimit: 24,
+                        callback: function(val, index) {
+                            const date = new Date(this.getLabelForValue(val));
+                            if (index % 4 === 0) return date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                            return null;
+                        }
+                    },
+                    grid: { display: false }
+                }, 
+                y: { ticks: { color: textColor, stepSize: 1 }, grid: { color: gridColor }, beginAtZero: true } 
             }
         }
     });
 
-    // --- GRÁFICA 2: PREDICCIÓN ---
     const ctxT = document.getElementById('trendChart').getContext('2d');
     if (trendChart) trendChart.destroy();
     
@@ -683,36 +636,18 @@ function updateCharts(history, predictions) {
         data: { 
             labels: pLabels, 
             datasets: [{ 
-                label: 'Predicción Bicis', // ETIQUETA CLARA
-                data: pData, 
-                backgroundColor: '#667eea', 
-                borderRadius: 4 
+                label: 'Predicción', data: pData, backgroundColor: '#667eea', borderRadius: 4 
             }] 
         },
         options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
+            responsive: true, maintainAspectRatio: false, 
             plugins: { 
                 legend: { display: false },
-                title: { 
-                    display: true, 
-                    text: predictions.length ? 'Futuro: Bicis estimadas' : 'Calculando predicciones...', 
-                    color: textColor 
-                },
-                tooltip: {
-                    callbacks: {
-                        label: (ctx) => `🔮 Esperamos ${ctx.raw} bicis` 
-                    }
-                }
+                title: { display: true, text: 'Predicción Futura', color: textColor }
             },
             scales: { 
                 x: { ticks: { color: textColor, maxRotation: 0, autoSkip: true }, grid: { display: false } }, 
-                y: { 
-                    ticks: { color: textColor }, 
-                    grid: { color: gridColor }, 
-                    beginAtZero: true,
-                    title: { display: true, text: 'Bicis estimadas', color: textColor }
-                } 
+                y: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true } 
             }
         }
     });
@@ -733,8 +668,14 @@ function setupFilters() {
 function setupSearch() {
     document.getElementById('search-input').addEventListener('input', e => {
         const term = e.target.value.toLowerCase();
+        
+        // 1. Guardar término global y actualizar lista
+        window.searchTerm = term;
+        updateStationsList();
+
+        // 2. Si coincidencia exacta, volar
         const f = stationsData.find(s => s.name.toLowerCase().includes(term));
-        if (f) { map.flyTo([f.latitude, f.longitude], 16); loadStationDetails(f); }
+        if (f && term.length > 3) { map.flyTo([f.latitude, f.longitude], 16); }
     });
 }
 
@@ -752,97 +693,20 @@ function showToast(m) {
     setTimeout(() => t.style.display='none', 3000);
 }
 
-// === 1. GESTOS MÓVILES (SWIPE) ===
-function initMobileGestures() {
-    const sidebar = document.getElementById('mobile-sidebar');
-    if (!sidebar) return;
-
-    let startY = 0;
-    let currentY = 0;
-    let isDragging = false;
-    const threshold = 100; // Mínimo movimiento para abrir/cerrar
-
-    // Escuchar toques en la cabecera (header y controles)
-    const header = document.querySelector('.top-controls');
-    
-    header.addEventListener('touchstart', (e) => {
-        startY = e.touches[0].clientY;
-        isDragging = true;
-    }, {passive: true});
-
-    header.addEventListener('touchmove', (e) => {
-        if (!isDragging) return;
-        currentY = e.touches[0].clientY;
-        const diff = currentY - startY;
-
-        // Si arrastramos hacia arriba mucho, abrimos
-        if (diff < -50) sidebar.classList.add('open');
-        // Si arrastramos hacia abajo mucho, cerramos
-        if (diff > 50) sidebar.classList.remove('open');
-    }, {passive: true});
-
-    header.addEventListener('touchend', () => {
-        isDragging = false;
-    });
-
-    // Cerrar sidebar si hacemos click en el mapa
-    map.on('click', () => {
-        sidebar.classList.remove('open');
-        clearUI(true);
-    });
-}
-
-// === 2. GEOLOCALIZACIÓN ROBUSTA ===
-function forceLocate() {
-    if (!navigator.geolocation) {
-        showToast("❌ Tu móvil no tiene GPS");
-        return;
-    }
-
-    showToast("📍 Obteniendo ubicación...");
-
-    map.locate({
-        setView: true, 
-        maxZoom: 15,
-        enableHighAccuracy: true,
-        timeout: 10000 
-    });
-
-    // Manejo manual de errores por si Leaflet falla silenciosamente
-    navigator.geolocation.getCurrentPosition(
-        (pos) => {
-            console.log("GPS OK:", pos.coords);
-            // El evento 'locationfound' de Leaflet se encargará del resto
-        },
-        (err) => {
-            console.warn("Error GPS:", err);
-            let msg = "⚠️ Error GPS desconocido";
-            if(err.code === 1) msg = "⚠️ Activa la ubicación en tu navegador";
-            if(err.code === 2) msg = "⚠️ Señal GPS débil";
-            if(err.code === 3) msg = "⚠️ Tiempo de espera agotado";
-            showToast(msg);
-        },
-        { enableHighAccuracy: true, timeout: 5000 }
-    );
-}
-
-// === SISTEMA DE ARRASTRE AVANZADO (BOTTOM SHEET) ===
+// === SISTEMA DE ARRASTRE MEJORADO (Detecta cabecera completa) ===
 function setupDraggableSheet(sheetId, dragZoneId, initialVisibleHeight) {
     const sheet = document.getElementById(sheetId);
     const handle = document.getElementById(dragZoneId);
+    const extraHandle = sheet.querySelector('.top-controls') || sheet.querySelector('.station-header-row');
     
     if (!sheet || !handle) return;
 
-    // Puntos de anclaje (Snap Points)
-    // TOP: Abierto del todo (0px)
-    // MIDDLE: Mitad de pantalla
-    // BOTTOM: Colapsado (solo asoma un poco)
     const getSnapPoints = () => {
-        const h = sheet.offsetHeight;
+        const h = window.innerHeight; 
         return {
             top: 0,
-            middle: h * 0.5, // 50% de la altura
-            bottom: h - initialVisibleHeight
+            middle: h * 0.4, 
+            bottom: sheet.offsetHeight - initialVisibleHeight
         };
     };
 
@@ -851,37 +715,35 @@ function setupDraggableSheet(sheetId, dragZoneId, initialVisibleHeight) {
     let isDragging = false;
     let startTime = 0;
 
-    // Inicializar posición
-    updatePosition(currentTranslate);
+    const addListeners = (element) => {
+        if(!element) return;
+        element.addEventListener('touchstart', (e) => {
+            if (['INPUT', 'BUTTON', 'I'].includes(e.target.tagName)) return;
+            isDragging = true;
+            startY = e.touches[0].clientY;
+            
+            const style = window.getComputedStyle(sheet);
+            const matrix = new WebKitCSSMatrix(style.transform);
+            currentTranslate = matrix.m42; 
+            
+            sheet.classList.add('is-dragging');
+            startTime = new Date().getTime();
+        }, {passive: false});
+    };
 
-    // INICIO ARRASTRE
-    handle.addEventListener('touchstart', (e) => {
-        isDragging = true;
-        startY = e.touches[0].clientY;
-        
-        // Leer posición actual real
-        const style = window.getComputedStyle(sheet);
-        const matrix = new WebKitCSSMatrix(style.transform);
-        currentTranslate = matrix.m42; 
-        
-        sheet.classList.add('is-dragging'); // Desactivar transición para fluidez
-        startTime = new Date().getTime();
-    }, {passive: true});
+    addListeners(handle);
+    addListeners(extraHandle);
 
-    // DURANTE ARRASTRE
-    handle.addEventListener('touchmove', (e) => {
+    window.addEventListener('touchmove', (e) => {
         if (!isDragging) return;
         const deltaY = e.touches[0].clientY - startY;
         let newY = currentTranslate + deltaY;
-
-        // Límites elásticos
-        if (newY < 0) newY = newY * 0.2; // Resistencia al tirar hacia arriba del todo
-        
+        if (newY < 0) newY = newY * 0.3;
         sheet.style.transform = `translateY(${newY}px)`;
     }, {passive: true});
 
-    // FIN ARRASTRE (SNAP)
-    handle.addEventListener('touchend', (e) => {
+    window.addEventListener('touchend', (e) => {
+        if (!isDragging) return;
         isDragging = false;
         sheet.classList.remove('is-dragging');
         
@@ -889,7 +751,6 @@ function setupDraggableSheet(sheetId, dragZoneId, initialVisibleHeight) {
         const totalDelta = endY - startY;
         const time = new Date().getTime() - startTime;
         
-        // Leer dónde quedó
         const style = window.getComputedStyle(sheet);
         const matrix = new WebKitCSSMatrix(style.transform);
         const finalTranslate = matrix.m42;
@@ -898,17 +759,13 @@ function setupDraggableSheet(sheetId, dragZoneId, initialVisibleHeight) {
         const velocity = Math.abs(totalDelta) / time;
         let target = finalTranslate;
 
-        // Lógica de decisión: ¿A dónde va la tarjeta?
-        if (velocity > 0.5) {
-            // Flick rápido
-            if (totalDelta > 0) target = snaps.bottom; // Hacia abajo -> Cerrar
-            else target = snaps.top; // Hacia arriba -> Abrir
+        if (velocity > 0.5 && time < 300) {
+            if (totalDelta > 0) target = snaps.bottom; 
+            else target = snaps.top; 
         } else {
-            // Movimiento lento -> Ir al punto más cercano
             const distTop = Math.abs(finalTranslate - snaps.top);
             const distMid = Math.abs(finalTranslate - snaps.middle);
             const distBot = Math.abs(finalTranslate - snaps.bottom);
-            
             const min = Math.min(distTop, distMid, distBot);
             if (min === distTop) target = snaps.top;
             else if (min === distMid) target = snaps.middle;
@@ -924,7 +781,6 @@ function setupDraggableSheet(sheetId, dragZoneId, initialVisibleHeight) {
     }
 }
 
-// === HELPER PARA GPS ===
 function forceLocate() {
     if (!navigator.geolocation) return;
     map.locate({setView: false, enableHighAccuracy: true});
