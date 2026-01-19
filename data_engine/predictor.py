@@ -1,18 +1,16 @@
 """
-Predictor v11.1: Fix AttributeError dayofweek -> weekday()
+Predictor v21: Matches Linear Model
+- Sin Log transform.
+- Incluye slope y holidays.
 """
 import os
 import joblib
 import pandas as pd
 import numpy as np
 import requests
-import logging
 from datetime import datetime, timedelta
 from supabase import create_client
 from dotenv import load_dotenv
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s')
-logger = logging.getLogger(__name__)
 
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -21,32 +19,20 @@ OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
 MODEL_PATH = 'data_engine/models_advanced.pkl'
 CORUNA_LAT, CORUNA_LON = 43.3623, -8.4115
 
+HOLIDAYS = ['2026-01-01', '2026-01-06', '2025-12-25', '2026-03-19']
+
 def get_supabase(): return create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def fetch_history_context():
-    """Descarga las últimas 48h para calcular lags recientes."""
+def fetch_recent_history():
     sb = get_supabase()
-    days_ago = (datetime.now() - timedelta(hours=48)).isoformat()
-    
-    all_rows = []
-    page = 0
-    while True:
-        r = sb.table('snapshots')\
-            .select('station_id, timestamp, available_bikes')\
-            .gte('timestamp', days_ago)\
-            .range(page*2000, (page+1)*2000-1).execute()
-        if not r.data: break
-        all_rows.extend(r.data)
-        if len(r.data) < 2000: break
-        page += 1
-        
-    df = pd.DataFrame(all_rows)
+    start_date = (datetime.now() - timedelta(hours=30)).isoformat()
+    r = sb.table('snapshots').select('station_id, timestamp, available_bikes').gte('timestamp', start_date).execute()
+    df = pd.DataFrame(r.data)
     if df.empty: return df
-    
-    df['timestamp'] = pd.to_datetime(df['timestamp'], format='mixed', utc=True).dt.tz_convert(None).dt.floor('h')
-    return df.sort_values('timestamp')
+    df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True, format='mixed').dt.tz_convert(None).dt.floor('h')
+    return df.sort_values('timestamp').drop_duplicates(subset=['station_id', 'timestamp'], keep='last')
 
-def fetch_weather():
+def fetch_weather_forecast():
     if not OPENWEATHER_API_KEY: return None
     try:
         url = "https://api.openweathermap.org/data/2.5/forecast"
@@ -55,107 +41,99 @@ def fetch_weather():
         for i in resp.json()['list']:
             data.append({
                 'timestamp': pd.to_datetime(i['dt'], unit='s'),
-                'temperature': i['main']['temp'],
-                'wind_speed': i['wind']['speed'],
-                'rain_1h': i.get('rain', {}).get('3h', 0) / 3
+                'temp': i['main']['temp'],
+                'wind': i['wind']['speed'],
+                'rain': i.get('rain', {}).get('3h', 0) / 3
             })
         return pd.DataFrame(data)
     except: return None
 
 def main():
-    print("🔮 PREDICCIONES v11.1 (Short History Fix)")
-    if not os.path.exists(MODEL_PATH): 
-        print("❌ No se encontró el modelo .pkl")
-        return
-
+    print("🔮 PREDICCIONES v21")
+    if not os.path.exists(MODEL_PATH): return print("❌ Sin modelo")
+    
     artifact = joblib.load(MODEL_PATH)
     model = artifact['model']
-    station_caps = artifact['station_info']
+    caps = artifact['station_info']
+    model_features = artifact.get('features', [])
     
-    model_version = artifact.get('version', 'unknown')
-    print(f"   Usando modelo versión: {model_version}")
-
-    # 1. Datos Contexto
-    history = fetch_history_context()
-    if history.empty: 
-        print("❌ No hay historia reciente en Supabase")
-        return
+    history = fetch_recent_history()
+    if history.empty: return print("❌ Sin historia")
     
-    weather_df = fetch_weather()
-    
-    # 2. Generar predicciones futuras
+    weather = fetch_weather_forecast()
     future_dates = [datetime.now().replace(minute=0, second=0, microsecond=0) + timedelta(hours=i) for i in range(1, 25)]
     all_preds = []
     
-    for sid in history['station_id'].unique():
+    stations = history['station_id'].unique()
+    print(f"   Generando para {len(stations)} estaciones...")
+
+    for sid in stations:
         sdf = history[history['station_id'] == sid].set_index('timestamp').sort_index()
         if len(sdf) < 1: continue
         
         last_val = sdf['available_bikes'].iloc[-1]
+        station_capacity = caps.get(sid, 30)
+        
+        recent_vals = sdf['available_bikes'].tail(3).tolist()
+        while len(recent_vals) < 3: recent_vals.insert(0, last_val)
         
         for date in future_dates:
-            # --- Lags ---
-            lag_1h = last_val
+            lag_1h = recent_vals[-1]
+            lag_2h = recent_vals[-2]
+            lag_3h = recent_vals[-3]
+            slope = lag_1h - lag_2h 
+            rolling_3h = sum(recent_vals[-3:]) / 3
             
             target_24h = date - timedelta(hours=24)
-            try:
-                idx_24 = sdf.index.get_indexer([target_24h], method='nearest')[0]
-                found_date = sdf.index[idx_24]
-                if abs((found_date - target_24h).total_seconds()) < 7200:
-                    lag_24h = sdf['available_bikes'].iloc[idx_24]
-                else:
-                    lag_24h = last_val
-            except:
-                lag_24h = last_val
+            lag_24h = sdf.loc[target_24h, 'available_bikes'] if target_24h in sdf.index else last_val
             
-            # --- Clima ---
-            temp, rain, wind = 15, 0, 5
-            if weather_df is not None:
-                time_diffs = (weather_df['timestamp'] - date).abs()
-                w_idx = time_diffs.idxmin()
-                if time_diffs[w_idx] < timedelta(hours=3):
-                    w_row = weather_df.loc[w_idx]
-                    temp = w_row['temperature']
-                    rain = w_row['rain_1h']
-                    wind = w_row['wind_speed']
-            
-            # --- CORRECCIÓN AQUÍ ---
-            # Usamos date.weekday() en lugar de date.dayofweek
-            row = pd.DataFrame([{
+            t, r, w = 15, 0, 5
+            if weather is not None:
+                w_row = weather.iloc[(weather['timestamp'] - date).abs().argsort()[:1]]
+                if not w_row.empty: t, r, w = w_row['temp'].values[0], w_row['rain'].values[0], w_row['wind'].values[0]
+
+            h = date.hour
+            d = date.weekday()
+            date_str = date.strftime('%Y-%m-%d')
+            is_holiday = 1 if date_str in HOLIDAYS else 0
+            eff_d = 6 if is_holiday else d
+            is_weekend = 1 if eff_d >= 5 else 0
+
+            row_dict = {
                 'station_id': sid,
-                'hour': date.hour,
-                'day_of_week': date.weekday(),             # <--- CORREGIDO
-                'is_weekend': 1 if date.weekday() >= 5 else 0, # <--- CORREGIDO
-                'temperature': temp,
-                'rain_1h': rain,
-                'wind_speed': wind,
-                'lag_1h': lag_1h,
-                'lag_2h': lag_1h,
-                'lag_3h': lag_1h,
-                'lag_24h': lag_24h
-            }])
+                'total_capacity': station_capacity,
+                'hour_sin': np.sin(2 * np.pi * h / 24),
+                'hour_cos': np.cos(2 * np.pi * h / 24),
+                'day_sin': np.sin(2 * np.pi * eff_d / 7),
+                'day_cos': np.cos(2 * np.pi * eff_d / 7),
+                'is_weekend': is_weekend, 'is_holiday': is_holiday,
+                'temperature': t, 'rain_1h': r, 'wind_speed': w,
+                'lag_1h': lag_1h, 'lag_2h': lag_2h, 'lag_3h': lag_3h, 
+                'lag_24h': lag_24h, 'rolling_3h': rolling_3h,
+                'slope': slope
+            }
             
-            pred = model.predict(row)[0]
-            cap = station_caps.get(sid, 30)
-            pred = max(0, min(cap, round(pred)))
+            X = pd.DataFrame([row_dict])
+            for f in model_features: 
+                if f not in X.columns: X[f] = 0
+            X = X[model_features]
             
+            pred = model.predict(X)[0]
+            pred = max(0, min(station_capacity, round(pred)))
+            
+            recent_vals.append(pred)
             all_preds.append({
                 'station_id': int(sid),
                 'prediction_date': date.isoformat(),
                 'predicted_bikes': int(pred)
             })
-            
-    # 3. Subir
+
     if all_preds:
         sb = get_supabase()
         batch = 1000
-        print(f"📤 Subiendo {len(all_preds)} predicciones...")
         for i in range(0, len(all_preds), batch):
-            sb.table("predicciones").upsert(
-                all_preds[i:i+batch], 
-                on_conflict='station_id,prediction_date'
-            ).execute()
-        print("✅ Proceso terminado.")
+            sb.table("predicciones").upsert(all_preds[i:i+batch], on_conflict='station_id,prediction_date').execute()
+        print(f"✅ {len(all_preds)} predicciones guardadas.")
 
 if __name__ == "__main__":
     main()

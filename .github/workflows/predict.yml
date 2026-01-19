@@ -2,7 +2,7 @@ name: 🔮 Generar Predicciones
 
 on:
   schedule:
-    - cron: '0 */2 * * *'  # Cada 2 horas
+    - cron: '0 */6 * * *'  # Cada 6 horas
   workflow_dispatch:
 
 jobs:
