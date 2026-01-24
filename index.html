@@ -5,17 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BiciCoruña AI</title>
     
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚲</text></svg>">
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
     
-    <link rel="stylesheet" href="style.css?v=5.0">
+    <link rel="stylesheet" href="style.css?v=8.2">
 </head>
 <body>
     <div class="container">
         
+        <div id="stats-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h3>🏆 Mis Logros</h3>
+                    <button id="btn-close-stats" class="close-btn">✕</button>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-icon">🚲</span>
+                        <div class="stat-value" id="stat-km">0</div>
+                        <div class="stat-label">Km Totales</div>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-icon">🌱</span>
+                        <div class="stat-value" id="stat-co2">0</div>
+                        <div class="stat-label">Kg CO2</div>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-icon">🔥</span>
+                        <div class="stat-value" id="stat-cal">0</div>
+                        <div class="stat-label">Calorías</div>
+                    </div>
+                </div>
+                <div class="modal-footer"><p>¡Sigue pedaleando!</p></div>
+            </div>
+        </div>
+
         <div id="route-panel" class="route-panel hidden">
             <div class="route-header">
                 <div style="display:flex; align-items:center; gap:8px;">
@@ -27,15 +55,13 @@
                 </div>
                 <button id="btn-stop-route" class="close-route-btn">✕</button>
             </div>
-            <div class="elevation-box hidden" id="elevation-box">
-                <canvas id="elevationChart"></canvas>
-            </div>
+            <div id="rain-alert" class="alert-box hidden"></div>
+            <button id="btn-finish-trip" class="action-btn success full-width hidden" style="margin-bottom:10px;">🏁 Completar Viaje</button>
+            <div class="elevation-box hidden" id="elevation-box"><canvas id="elevationChart"></canvas></div>
         </div>
 
         <div class="sidebar-wrapper bottom-sheet" id="main-panel">
-            <div class="drag-zone" id="main-drag-zone">
-                <div class="drag-handle"></div> 
-            </div>
+            <div class="drag-zone" id="main-drag-zone"><div class="drag-handle"></div></div>
 
             <div class="top-controls">
                 <div class="app-header">
@@ -44,12 +70,10 @@
                         <div class="weather-mini" id="weather-display"><i class="ph ph-cloud-sun"></i> --°C</div>
                     </div>
                     <div class="header-actions">
-                        <button id="btn-heatmap" class="theme-btn" title="Mapa de Calor">
-                            <i class="ph ph-fire"></i>
-                        </button>
-                        <button id="btn-dark-mode" class="theme-btn" title="Modo Oscuro">
-                            <i class="ph ph-moon"></i>
-                        </button>
+                        <button id="btn-stats" class="theme-btn" title="Estadísticas"><i class="ph ph-trophy"></i></button>
+                        <button id="btn-tourist" class="theme-btn" title="Modo Turista"><i class="ph ph-camera"></i></button>
+                        <button id="btn-heatmap" class="theme-btn" title="Mapa de Calor"><i class="ph ph-fire"></i></button>
+                        <button id="btn-dark-mode" class="theme-btn" title="Modo Oscuro"><i class="ph ph-moon"></i></button>
                     </div>
                 </div>
 
@@ -69,7 +93,7 @@
             <div id="station-list-container" class="station-list-container">
                 <div class="list-header" id="list-header-text"><i class="ph ph-map-pin"></i> Más cercanas a ti</div>
                 <div id="stations-list" class="stations-list-scroll">
-                    <div class="loading-list">Calculando distancias...</div>
+                    <div class="loading-list">Cargando estaciones...</div>
                 </div>
             </div>
         </div>
@@ -93,14 +117,8 @@
                 </div>
 
                 <div class="kpi-row">
-                    <div class="mini-kpi">
-                        <span class="val" id="st-bikes">-</span> 
-                        <span class="lbl">Bicis</span>
-                    </div>
-                    <div class="mini-kpi">
-                        <span class="val" id="st-slots">-</span> 
-                        <span class="lbl">Huecos</span>
-                    </div>
+                    <div class="mini-kpi"><span class="val" id="st-bikes">-</span><span class="lbl">Bicis</span></div>
+                    <div class="mini-kpi"><span class="val" id="st-slots">-</span><span class="lbl">Huecos</span></div>
                 </div>
 
                 <div class="ai-planning-card" id="ai-card">
@@ -108,21 +126,15 @@
                         <span class="ai-icon"><i class="ph ph-magic-wand"></i></span>
                         <div class="ai-title"><strong>Planificador & Rutas</strong></div>
                     </div>
-                    
                     <div class="ai-actions-grid">
                         <button id="btn-plan-trip" class="ai-action-btn primary full-width">
-                            <span><i class="ph ph-magic-wand"></i> Predicción de Disponibilidad</span>
+                            <span><i class="ph ph-magic-wand"></i> Predicción</span>
                         </button>
                         <div class="route-buttons-row">
-                            <button id="btn-route-walk" class="ai-action-btn secondary">
-                                <i class="ph ph-person-simple-walk"></i> Ir andando
-                            </button>
-                            <button id="btn-route-bike" class="ai-action-btn secondary">
-                                <i class="ph ph-bicycle"></i> Ir en bici
-                            </button>
+                            <button id="btn-route-walk" class="ai-action-btn secondary"><i class="ph ph-person-simple-walk"></i> Andando</button>
+                            <button id="btn-route-bike" class="ai-action-btn secondary"><i class="ph ph-bicycle"></i> Bici</button>
                         </div>
                     </div>
-
                     <div id="trip-result" class="trip-result hidden">
                         <div class="loading-spinner hidden" id="trip-loader"><div class="spinner"></div> Calculando...</div>
                         <div id="trip-content"></div>
@@ -130,17 +142,9 @@
                 </div>
 
                 <div class="charts-scroll">
-                    <div id="popular-time-box" class="popular-time hidden">
-                        🕒 Suele llenarse a las <strong>--:--</strong>
-                    </div>
-                    <div class="chart-box">
-                        <h4>📉 Historial (24h)</h4>
-                        <canvas id="historyChart"></canvas>
-                    </div>
-                    <div class="chart-box">
-                        <h4>🔮 Predicción</h4>
-                        <canvas id="trendChart"></canvas>
-                    </div>
+                    <div id="popular-time-box" class="popular-time hidden"></div>
+                    <div class="chart-box"><h4>📉 Historial (24h)</h4><canvas id="historyChart"></canvas></div>
+                    <div class="chart-box"><h4>🔮 Predicción</h4><canvas id="trendChart"></canvas></div>
                 </div>
             </div>
         </aside>
@@ -152,14 +156,9 @@
             <div class="legend-item"><div class="legend-color" style="background:#f39c12"></div><span>1-4 Bicis</span></div>
             <div class="legend-item"><div class="legend-color" style="background:#e74c3c"></div><span>0 Bicis</span></div>
         </div>
-
         <div class="map-legend hidden" id="heatmap-legend">
-            <div style="font-size:0.75rem; color:#666; margin-bottom:5px; text-align:center;">Concentración de Bicis</div>
+            <div style="font-size:0.75rem; color:#666;">Concentración</div>
             <div class="heatmap-gradient"></div>
-            <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#888;">
-                <span>Pocas</span>
-                <span>Muchas</span>
-            </div>
         </div>
 
         <div class="toast" id="toast"><span id="toast-message"></span></div>
@@ -170,6 +169,7 @@
     <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="logic.js?v=5.0"></script>
+    
+    <script src="logic.js?v=8.2"></script>
 </body>
 </html>
