@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     
-    <link rel="stylesheet" href="style.css?v=8.2">
+    <link rel="stylesheet" href="style.css?v=10.0">
 </head>
 <body>
     <div class="container">
@@ -44,6 +44,71 @@
             </div>
         </div>
 
+        <div id="ranking-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h3>🏆 Top Ciclistas</h3>
+                    <button id="btn-close-ranking" class="close-btn">✕</button>
+                </div>
+                <div class="ranking-list">
+                    <div class="ranking-item gold">
+                        <div class="rank-pos">1</div>
+                        <div class="rank-info">
+                            <strong>Ana G.</strong> <small>Semana de oro</small>
+                        </div>
+                        <div class="rank-score">142 km</div>
+                    </div>
+                    <div class="ranking-item silver">
+                        <div class="rank-pos">2</div>
+                        <div class="rank-info">
+                            <strong>Pablo R.</strong> <small>Escalador</small>
+                        </div>
+                        <div class="rank-score">98 km</div>
+                    </div>
+                    <div class="ranking-item bronze">
+                        <div class="rank-pos">3</div>
+                        <div class="rank-info">
+                            <strong>Tú</strong> <small>¡Sigue así!</small>
+                        </div>
+                        <div class="rank-score" id="user-rank-km">0 km</div>
+                    </div>
+                </div>
+                <div class="modal-footer"><p>¡Supera a Pablo para ganar la plata!</p></div>
+            </div>
+        </div>
+
+        <div id="report-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h3>⚠️ Reportar Problema</h3>
+                    <button id="btn-close-report" class="close-btn">✕</button>
+                </div>
+                
+                <p style="font-size:0.9rem; color:#666; margin-bottom:15px; text-align:left;">
+                    ¿Qué ocurre en <b id="report-station-name">esta estación</b>?
+                </p>
+
+                <div class="report-options-grid">
+                    <button class="report-chip" onclick="selectReportOption(this, 'bici')">🚲 Bici Rota</button>
+                    <button class="report-chip" onclick="selectReportOption(this, 'anclaje')">🔒 Anclaje Falla</button>
+                    <button class="report-chip" onclick="selectReportOption(this, 'pantalla')">🖥️ Pantalla</button>
+                    <button class="report-chip" onclick="selectReportOption(this, 'suciedad')">🧹 Suciedad</button>
+                </div>
+
+                <textarea id="report-text" class="report-textarea" placeholder="Describe el problema (opcional)..." rows="3"></textarea>
+
+                <div class="file-upload-container">
+                    <label for="report-file" class="file-upload-label">
+                        <i class="ph ph-camera"></i> Adjuntar Foto
+                    </label>
+                    <input type="file" id="report-file" accept="image/*" hidden onchange="previewImage(event)">
+                    <div id="image-preview" class="hidden"></div>
+                </div>
+
+                <button id="btn-submit-report" class="action-btn warning full-width">Enviar Reporte</button>
+            </div>
+        </div>
+
         <div id="route-panel" class="route-panel hidden">
             <div class="route-header">
                 <div style="display:flex; align-items:center; gap:8px;">
@@ -70,10 +135,11 @@
                         <div class="weather-mini" id="weather-display"><i class="ph ph-cloud-sun"></i> --°C</div>
                     </div>
                     <div class="header-actions">
-                        <button id="btn-stats" class="theme-btn" title="Estadísticas"><i class="ph ph-trophy"></i></button>
-                        <button id="btn-tourist" class="theme-btn" title="Modo Turista"><i class="ph ph-camera"></i></button>
+                        <button id="btn-ranking" class="theme-btn" title="Ranking Global"><i class="ph ph-trophy"></i></button>
+                        <button id="btn-stats" class="theme-btn" title="Mis Estadísticas"><i class="ph ph-chart-bar"></i></button> 
                         <button id="btn-heatmap" class="theme-btn" title="Mapa de Calor"><i class="ph ph-fire"></i></button>
                         <button id="btn-dark-mode" class="theme-btn" title="Modo Oscuro"><i class="ph ph-moon"></i></button>
+                        <button id="btn-rain" class="theme-btn" title="Radar de Lluvia"><i class="ph ph-cloud-rain"></i></button>
                     </div>
                 </div>
 
@@ -134,6 +200,9 @@
                             <button id="btn-route-walk" class="ai-action-btn secondary"><i class="ph ph-person-simple-walk"></i> Andando</button>
                             <button id="btn-route-bike" class="ai-action-btn secondary"><i class="ph ph-bicycle"></i> Bici</button>
                         </div>
+                        <button id="btn-report" class="ai-action-btn secondary full-width" style="margin-top:5px; color:#e67e22; border-color: #e67e22;">
+                            <i class="ph ph-warning"></i> Reportar Incidencia
+                        </button>
                     </div>
                     <div id="trip-result" class="trip-result hidden">
                         <div class="loading-spinner hidden" id="trip-loader"><div class="spinner"></div> Calculando...</div>
@@ -170,6 +239,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
-    <script src="logic.js?v=8.2"></script>
+    <script src="logic.js?v=10.0"></script>
 </body>
 </html>

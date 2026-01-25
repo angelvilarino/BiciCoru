@@ -184,23 +184,32 @@ body.dark-mode .secondary { background: rgba(255,255,255,0.05); color: #fff; bor
 
 .toast { position: fixed; top: 20px; right: 20px; background: white; padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 10000; display: none; border-left: 5px solid #667eea; }
 
-/* MÓVIL */
+/* === ESTILOS MÓVIL CRÍTICOS (FIX DESLIZAR) === */
 @media (max-width: 768px) {
     .bottom-sheet {
         position: fixed; left: 0; right: 0; bottom: 0; width: 100%; height: 85vh;
         background: var(--bg-card); border-radius: 20px 20px 0 0;
         box-shadow: 0 -5px 30px rgba(0,0,0,0.2); z-index: 2000;
-        transform: translateY(calc(100% - 140px)); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        transform: translateY(calc(100% - 140px)); 
+        transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
         display: flex; flex-direction: column;
     }
     .is-dragging { transition: none !important; }
+    
     .sidebar-wrapper { top: auto; height: 85vh; transform: translateY(calc(100% - 140px)); }
     .station-card {
-        top: auto; left: 0; width: 100%; max-height: 85vh; transform: translateY(110%); display: flex !important; z-index: 2100;
+        top: auto; left: 0; width: 100%; max-height: 85vh; transform: translateY(110%); 
+        display: flex !important; z-index: 2100;
     }
-    .drag-zone { padding: 10px; cursor: grab; flex-shrink: 0; background: var(--bg-card); border-radius: 20px 20px 0 0; }
+    
+    /* FIX: touch-action none para que no haga scroll de página */
+    .drag-zone { 
+        padding: 10px; cursor: grab; flex-shrink: 0; background: var(--bg-card); 
+        border-radius: 20px 20px 0 0; touch-action: none; 
+    }
+    
     .station-list-container, .card-content { overflow-y: auto; flex: 1; padding-bottom: 50px; overscroll-behavior: contain; }
-    .drag-handle { width: 40px; height: 5px; background: #e0e0e0; border-radius: 10px; margin: 5px auto 10px auto; }
+    .drag-handle { width: 40px; height: 5px; background: #e0e0e0; border-radius: 10px; margin: 5px auto 10px auto; pointer-events: none; }
     .route-panel { top: 60px; right: 10px; z-index: 1000; width: 260px; }
     .map-legend { bottom: 150px; right: 20px; padding: 10px; }
 }
@@ -235,18 +244,6 @@ body.dark-mode .secondary { background: rgba(255,255,255,0.05); color: #fff; bor
     .card-content { padding: 20px; overflow-y: auto; height: 100%; }
     .close-card-btn { top: 15px; right: 15px; display: block; }
     .station-card.hidden { display: none !important; }
-}
-
-/* Alerta Lluvia */
-.alert-box {
-    background: rgba(231, 76, 60, 0.1);
-    border-left: 4px solid #e74c3c;
-    color: #e74c3c;
-    padding: 10px;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    margin-bottom: 10px;
-    animation: fadeIn 0.3s;
 }
 
 /* Modal Estadísticas */
@@ -287,76 +284,61 @@ body.dark-mode .secondary { background: rgba(255,255,255,0.05); color: #fff; bor
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* === MODO TURISTA MODERNO === */
-
-/* Marcador personalizado (Círculo con icono) */
-.tourist-icon-marker {
-    background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
-    border: 2px solid white;
-    border-radius: 50%;
-    color: white;
-    display: flex !important;
-    justify-content: center;
-    align-items: center;
-    box-shadow: 0 4px 15px rgba(230, 126, 34, 0.6);
-    font-size: 1.2rem;
-    animation: bounceIn 0.5s ease-out;
+/* ESTILOS REPORTE */
+.report-options-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;
+}
+.report-chip {
+    background: var(--bg-input); border: 2px solid transparent; 
+    padding: 10px; border-radius: 10px; color: var(--text-main); font-weight: 600; cursor: pointer;
+    transition: all 0.2s; font-size: 0.85rem;
+}
+.report-chip:hover { background: rgba(0,0,0,0.05); }
+.report-chip.selected {
+    border-color: #e67e22; background: rgba(230, 126, 34, 0.1); color: #e67e22;
+}
+.report-textarea {
+    width: 100%; border: 1px solid #ddd; background: var(--bg-input);
+    border-radius: 10px; padding: 10px; font-family: inherit; margin-bottom: 15px;
+    resize: none; color: var(--text-main);
+}
+.action-btn.warning {
+    background: linear-gradient(135deg, #f39c12 0%, #d35400 100%);
+    color: white; border: none; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; width: 100%;
 }
 
-/* Efecto de onda (Pulse) para llamar la atención */
-.pulse-ring {
-    border: 3px solid #e67e22;
-    border-radius: 50%;
-    height: 100%; width: 100%;
-    position: absolute;
-    animation: pulsate 2s ease-out;
-    animation-iteration-count: infinite; 
-    opacity: 0;
-    z-index: -1;
+/* === RANKING (Funcionalidad 4) === */
+.ranking-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.ranking-item { 
+    display: flex; align-items: center; padding: 12px; border-radius: 12px; 
+    background: var(--bg-input); border: 1px solid transparent;
 }
+.rank-pos { 
+    font-size: 1.2rem; font-weight: 800; width: 35px; text-align: center; margin-right: 10px; 
+}
+.rank-info { flex: 1; display: flex; flex-direction: column; text-align: left; }
+.rank-score { font-weight: 700; color: var(--accent-color); }
 
-@keyframes pulsate {
-    0% { transform: scale(0.1, 0.1); opacity: 0; }
-    50% { opacity: 1; }
-    100% { transform: scale(2.5, 2.5); opacity: 0; }
-}
+.ranking-item.gold { background: linear-gradient(135deg, #fff 0%, #fff9c4 100%); border-color: #f1c40f; }
+.ranking-item.gold .rank-pos { color: #f1c40f; }
+.ranking-item.silver { background: linear-gradient(135deg, #fff 0%, #f5f5f5 100%); border-color: #bdc3c7; }
+.ranking-item.silver .rank-pos { color: #7f8c8d; }
+.ranking-item.bronze { background: linear-gradient(135deg, #fff 0%, #fbeee6 100%); border-color: #d35400; }
+.ranking-item.bronze .rank-pos { color: #d35400; }
 
-@keyframes bounceIn {
-    0% { transform: scale(0); }
-    60% { transform: scale(1.2); }
-    100% { transform: scale(1); }
+/* === FOTO UPLOAD (Funcionalidad 8) === */
+.file-upload-container { margin-bottom: 15px; }
+.file-upload-label {
+    display: block; width: 100%; padding: 10px; text-align: center;
+    border: 2px dashed #ccc; border-radius: 10px; cursor: pointer; color: var(--text-sub);
+    transition: all 0.2s;
 }
+.file-upload-label:hover { border-color: var(--accent-color); color: var(--accent-color); }
+#image-preview {
+    margin-top: 10px; width: 100%; height: 150px; background-size: cover; 
+    background-position: center; border-radius: 10px; border: 1px solid #ddd;
+}
+#image-preview.hidden { display: none; }
 
-/* Popup estilo Tarjeta con Foto */
-.tourist-popup .leaflet-popup-content-wrapper {
-    padding: 0;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-}
-.tourist-popup .leaflet-popup-content {
-    margin: 0 !important;
-    width: 260px !important;
-}
-.popup-cover {
-    width: 100%;
-    height: 140px;
-    background-size: cover;
-    background-position: center;
-    position: relative;
-}
-.popup-info {
-    padding: 15px;
-    background: var(--bg-card);
-}
-.popup-info h3 {
-    margin: 0 0 5px 0;
-    font-size: 1.1rem;
-    color: var(--text-main);
-}
-.popup-info p {
-    margin: 0;
-    font-size: 0.85rem;
-    color: var(--text-sub);
-    line-height: 1.4;
-}
+/* Botón Lluvia Activo */
+#btn-rain.active { color: #3498db; background: rgba(52, 152, 219, 0.15); }
