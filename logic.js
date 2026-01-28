@@ -431,44 +431,66 @@ function updateMap() {
 // ==========================================
 
 function loadStationDetails(s) {
-    const listCont = document.getElementById('station-list-container');
-    if(listCont) listCont.classList.add('hidden'); 
-    const card = document.getElementById('station-card');
-    if(card) card.classList.remove('hidden');
     currentStation = s;
     
-    document.getElementById('station-name').textContent = s.name;
+    // UI Desktop/Móvil management
+    const listCont = document.getElementById('main-panel'); // El panel principal (lista)
+    const card = document.getElementById('station-card');   // La tarjeta detalle
+    
+    // 1. Ocultar/Minimizar lista
+    // En móvil, bajamos la lista para dejar sitio. En desktop, usamos hidden.
+    if (window.innerWidth <= 768) {
+        listCont.classList.add('minimized'); // Usaremos CSS para bajarla
+    } else {
+        document.getElementById('station-list-container').classList.add('hidden');
+    }
+
+    // 2. Mostrar Tarjeta Detalle
+    card.classList.remove('hidden');
+    
+    // 3. Rellenar Datos
+    if(document.getElementById('station-name')) document.getElementById('station-name').textContent = s.name;
+    
     const bikesEl = document.getElementById('st-bikes');
     const slotsEl = document.getElementById('st-slots');
-    bikesEl.textContent = s.available_bikes;
-    slotsEl.textContent = s.available_slots;
-    updateColorClass(bikesEl, s.available_bikes);
-    updateColorClass(slotsEl, s.available_slots);
+    if(bikesEl) bikesEl.textContent = s.available_bikes;
+    if(slotsEl) slotsEl.textContent = s.available_slots;
     
-    // FIX: RESTAURADO EL ESTADO OPERATIVO QUE FALTABA
-    const statusEl = document.getElementById('station-status');
-    if (statusEl) {
-        statusEl.innerHTML = s.available_bikes > 0 
-            ? '<span style="color:#2ecc71">● Operativa</span>' 
-            : '<span style="color:#e74c3c">● Sin bicis</span>';
-    }
+    if(bikesEl) updateColorClass(bikesEl, s.available_bikes);
+    if(slotsEl) updateColorClass(slotsEl, s.available_slots);
     
-    document.getElementById('station-capacity').textContent = `Cap: ${s.total_capacity}`;
+    if(document.getElementById('station-capacity')) 
+        document.getElementById('station-capacity').textContent = `Cap: ${s.total_capacity}`;
+    
     updateFavoriteBtn(s.station_id);
 
+    // 4. Configurar Botones (Clonando para limpiar eventos viejos)
     const setupBtn = (id, cb) => {
         const el = document.getElementById(id);
-        if(el) { const n = el.cloneNode(true); el.parentNode.replaceChild(n, el); n.addEventListener('click', cb); }
+        if(el) { 
+            const n = el.cloneNode(true); 
+            el.parentNode.replaceChild(n, el); 
+            n.addEventListener('click', cb); 
+        }
     }
+    
     setupBtn('btn-route-walk', () => drawRoute(s, 'walk'));
     setupBtn('btn-route-bike', () => drawRoute(s, 'bike'));
     setupBtn('btn-plan-trip', () => calcIA(s));
-    setupBtn('btn-report', openReportModal);
+    
+    // Usamos window.openReportModal si está definido globalmente, si no buscamos la función
+    setupBtn('btn-report', typeof openReportModal !== 'undefined' ? openReportModal : () => console.log("Report func missing"));
 
+    // 5. Limpiezas finales
     const tripRes = document.getElementById('trip-result');
     if(tripRes) tripRes.classList.add('hidden');
 
-    map.flyTo([s.latitude, s.longitude], 16, { duration: 0.5, paddingBottomRight: [0, 200] });
+    // Zoom al mapa
+    map.flyTo([s.latitude, s.longitude], 16, { 
+        duration: 0.5, 
+        paddingBottomRight: window.innerWidth > 768 ? [0, 0] : [0, 300] // Ajuste para que se vea en móvil
+    });
+    
     setTimeout(() => loadRealCharts(s.station_id), 100);
 }
 
@@ -487,8 +509,13 @@ function clearUI(closeCard = true) {
         const sCard = document.getElementById('station-card');
         if(sCard) sCard.classList.add('hidden');
         
+        // Restaurar lista
+        const mainPanel = document.getElementById('main-panel');
+        mainPanel.classList.remove('minimized'); // Restaurar posición móvil
+        
         const listCont = document.getElementById('station-list-container');
-        if(listCont) listCont.classList.remove('hidden'); 
+        listCont.classList.remove('hidden'); // Restaurar visibilidad desktop
+        
         currentStation = null;
     }
 }
@@ -644,14 +671,56 @@ function setupDraggableSheet(sheetId, dragZoneId, initialVisibleHeight) {
     const sheet = document.getElementById(sheetId);
     const handle = document.getElementById(dragZoneId);
     if (!sheet || !handle) return;
-    let startY = 0; let currentTranslate = 0; let isDragging = false;
-    handle.addEventListener('touchstart', (e) => { isDragging = true; startY = e.touches[0].clientY; sheet.style.transition = 'none'; }, {passive:false});
+
+    let startY = 0;
+    let currentTranslate = 0;
+    let isDragging = false;
+
+    // Solo iniciamos el arrastre si tocamos el HEADER (drag-zone)
+    handle.addEventListener('touchstart', (e) => {
+        isDragging = true;
+        startY = e.touches[0].clientY;
+        
+        // Obtener la posición actual real (por si estaba a medio camino)
+        const style = window.getComputedStyle(sheet);
+        const matrix = new WebKitCSSMatrix(style.transform);
+        currentTranslate = matrix.m42;
+        
+        sheet.style.transition = 'none'; // Quitar animación mientras arrastras
+    }, {passive: false});
+
     window.addEventListener('touchmove', (e) => {
         if (!isDragging) return;
+        
         const delta = e.touches[0].clientY - startY;
-        if (delta > -50) sheet.style.transform = `translateY(${delta}px)`;
-    }, {passive:false});
-    window.addEventListener('touchend', () => { isDragging = false; sheet.style.transition = 'transform 0.3s'; sheet.style.transform = ''; });
+        const newPos = currentTranslate + delta;
+
+        // Limites simples: No subir más allá de 0 (tope pantalla) 
+        // y no bajar más allá de ocultarse
+        if (newPos > 0) { 
+             sheet.style.transform = `translateY(${newPos}px)`;
+             e.preventDefault(); // AQUÍ SÍ bloqueamos scroll porque estamos arrastrando el panel
+        }
+    }, {passive: false});
+
+    window.addEventListener('touchend', (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        sheet.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)';
+        
+        const endY = e.changedTouches[0].clientY;
+        const movedDistance = endY - startY;
+
+        // Lógica de "Snap": Si moviste rápido o mucho, cierra/abre
+        if (movedDistance > 50) {
+            // Deslizó hacia abajo -> Colapsar a la altura visible inicial
+            const hiddenAmount = sheet.offsetHeight - initialVisibleHeight;
+            sheet.style.transform = `translateY(${hiddenAmount}px)`;
+        } else {
+            // Deslizó hacia arriba o poco -> Abrir completo
+            sheet.style.transform = `translateY(0)`;
+        }
+    });
 }
 
 async function loadRealCharts(stationId) {
