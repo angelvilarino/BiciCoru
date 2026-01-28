@@ -184,29 +184,91 @@ body.dark-mode .secondary { background: rgba(255,255,255,0.05); color: #fff; bor
 
 .toast { position: fixed; top: 20px; right: 20px; background: white; padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 10000; display: none; border-left: 5px solid #667eea; }
 
-/* --- FIX SCROLL MÓVIL Y TARJETAS --- */
+/* === ESTILOS MÓVIL CRÍTICOS (FIX VISUAL FINAL) === */
 @media (max-width: 768px) {
-    /* Permitir scroll en la lista pero bloquearlo en el header para arrastrar */
-    .stations-list-scroll {
-        overflow-y: auto !important;
-        -webkit-overflow-scrolling: touch;
-        touch-action: pan-y; /* Permite scroll vertical */
-    }
-    
-    .drag-zone {
-        touch-action: none; /* Bloquea scroll para permitir arrastre */
-    }
-
-    /* Asegurar que la tarjeta de detalle se vea al abrir */
-    .station-card:not(.hidden) {
-        transform: translateY(0) !important; /* Forzar que suba */
+    /* CLASE GENÉRICA PARA PANELES DESLIZABLES */
+    .bottom-sheet {
+        position: fixed !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important; /* Anclar abajo obligatorio */
+        top: auto !important; /* Anular top del escritorio */
+        
+        width: 100% !important; /* Ocupar todo el ancho */
+        max-width: 100% !important;
+        height: 80vh !important; /* Altura máxima del panel */
+        
+        background: var(--bg-card);
+        border-radius: 20px 20px 0 0;
+        box-shadow: 0 -5px 30px rgba(0,0,0,0.2);
+        z-index: 2000;
+        
+        display: flex;
+        flex-direction: column;
+        
+        /* Estado inicial: solo se ve la cabecera (140px) */
+        transform: translateY(calc(100% - 140px)); 
         transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
-    
-    /* Asegurar que la lista se oculte visualmente o baje cuando se abre el detalle */
-    .sidebar-wrapper.minimized {
-        transform: translateY(90%) !important;
+
+    /* 1. ARREGLO LISTA PRINCIPAL */
+    .sidebar-wrapper {
+        /* Hereda .bottom-sheet, aseguramos reset de márgenes */
+        margin: 0 !important;
+        padding: 0 !important;
     }
+    
+    /* Cuando se minimiza (al abrir detalle), se baja casi del todo */
+    .sidebar-wrapper.minimized {
+        transform: translateY(92%) !important;
+    }
+
+    /* 2. ARREGLO TARJETA DETALLE (ESTACIÓN) */
+    .station-card {
+        /* Hereda .bottom-sheet, pero con z-index mayor */
+        z-index: 2100 !important;
+        transform: translateY(110%); /* Oculta por defecto */
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* Cuando se abre la tarjeta, sube a posición visible */
+    .station-card:not(.hidden) {
+        transform: translateY(0) !important;
+    }
+
+    /* 3. ZONA DE ARRASTRE */
+    .drag-zone { 
+        padding: 15px; 
+        cursor: grab; 
+        flex-shrink: 0; 
+        background: var(--bg-card); 
+        border-radius: 20px 20px 0 0; 
+        touch-action: none; /* Vital para que funcione el arrastre JS */
+        display: block !important; /* Asegurar que se vea el tirador */
+    }
+    
+    .drag-handle { 
+        width: 50px; 
+        height: 6px; 
+        background: #e0e0e0; 
+        border-radius: 10px; 
+        margin: 0 auto; 
+    }
+
+    /* 4. SCROLL INTERNO ARREGLADO */
+    .station-list-container, .card-content {
+        flex: 1;
+        overflow-y: auto !important; /* Scroll nativo */
+        -webkit-overflow-scrolling: touch; /* Suavidad en iOS */
+        padding-bottom: 40px;
+        touch-action: pan-y; /* Permitir deslizar contenido */
+    }
+    
+    /* Ajustes menores de interfaz móvil */
+    .route-panel { top: 70px; right: 10px; left: 10px; width: auto; z-index: 1000; }
+    .map-legend { bottom: 160px; right: 10px; padding: 10px; }
+    .station-list-container { margin: 0 !important; }
 }
 
 /* ESCRITORIO */
