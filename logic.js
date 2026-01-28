@@ -667,40 +667,43 @@ function toggleHeatmap() {
     updateMap(); 
 }
 
-function setupDraggableSheet(sheetId, dragZoneId, initialVisibleHeight) {
+// === FUNCIÓN ARRASTRAR PANEL (MÓVIL) CORREGIDA ===
+function setupDraggableSheet(sheetId, dragZoneId, visiblePixels) {
     const sheet = document.getElementById(sheetId);
     const handle = document.getElementById(dragZoneId);
     if (!sheet || !handle) return;
 
     let startY = 0;
-    let currentTranslate = 0;
+    let initialY = 0;
     let isDragging = false;
 
-    // Solo iniciamos el arrastre si tocamos el HEADER (drag-zone)
     handle.addEventListener('touchstart', (e) => {
         isDragging = true;
         startY = e.touches[0].clientY;
+        sheet.style.transition = 'none'; // Sin animación al arrastrar
         
-        // Obtener la posición actual real (por si estaba a medio camino)
+        // Leer posición actual exacta
         const style = window.getComputedStyle(sheet);
         const matrix = new WebKitCSSMatrix(style.transform);
-        currentTranslate = matrix.m42;
-        
-        sheet.style.transition = 'none'; // Quitar animación mientras arrastras
+        initialY = matrix.m42;
     }, {passive: false});
 
     window.addEventListener('touchmove', (e) => {
         if (!isDragging) return;
-        
-        const delta = e.touches[0].clientY - startY;
-        const newPos = currentTranslate + delta;
+        const currentY = e.touches[0].clientY;
+        const diff = currentY - startY; // Cuánto he movido el dedo
+        let nextY = initialY + diff;    // Nueva posición calculada
 
-        // Limites simples: No subir más allá de 0 (tope pantalla) 
-        // y no bajar más allá de ocultarse
-        if (newPos > 0) { 
-             sheet.style.transform = `translateY(${newPos}px)`;
-             e.preventDefault(); // AQUÍ SÍ bloqueamos scroll porque estamos arrastrando el panel
-        }
+        // LÍMITES DE SEGURIDAD
+        // 0 = Tope superior de la pantalla
+        if (nextY < 0) nextY = 0; 
+        
+        // Aplicar movimiento
+        sheet.style.transform = `translateY(${nextY}px)`;
+        
+        // BLOQUEAR SCROLL DE PÁGINA (CRÍTICO)
+        if (e.cancelable) e.preventDefault();
+        
     }, {passive: false});
 
     window.addEventListener('touchend', (e) => {
@@ -708,17 +711,23 @@ function setupDraggableSheet(sheetId, dragZoneId, initialVisibleHeight) {
         isDragging = false;
         sheet.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)';
         
-        const endY = e.changedTouches[0].clientY;
-        const movedDistance = endY - startY;
+        // ¿Dónde soltó el usuario?
+        const style = window.getComputedStyle(sheet);
+        const matrix = new WebKitCSSMatrix(style.transform);
+        const currentY = matrix.m42;
+        
+        // Altura "Cerrado" (lo que debe bajar para mostrar solo la cabecera)
+        const closedY = window.innerHeight - visiblePixels; 
+        
+        // DECISIÓN INTELIGENTE:
+        // Si ha subido más de la mitad del recorrido -> Abrir a tope (0)
+        // Si no -> Bajar a posición inicial (closedY)
+        const threshold = closedY / 2; 
 
-        // Lógica de "Snap": Si moviste rápido o mucho, cierra/abre
-        if (movedDistance > 50) {
-            // Deslizó hacia abajo -> Colapsar a la altura visible inicial
-            const hiddenAmount = sheet.offsetHeight - initialVisibleHeight;
-            sheet.style.transform = `translateY(${hiddenAmount}px)`;
+        if (currentY < threshold) {
+            sheet.style.transform = `translateY(0px)`; // Abrir
         } else {
-            // Deslizó hacia arriba o poco -> Abrir completo
-            sheet.style.transform = `translateY(0)`;
+            sheet.style.transform = `translateY(${closedY}px)`; // Cerrar
         }
     });
 }
