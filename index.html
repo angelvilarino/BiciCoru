@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BiciCoruña AI</title>
+    <meta name="description" content="BiciCoruña AI - Sistema inteligente de bicicletas públicas con predicciones en tiempo real">
+    <title>BiciCoruña AI - Sistema Inteligente de Bicicletas</title>
     
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚲</text></svg>">
 
@@ -13,157 +14,200 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     
     <link rel="stylesheet" href="style.css?v=22.0">
+    <link rel="stylesheet" href="features-styles.css?v=1.0">
 </head>
 <body>
-    <div class="container">
+    <!-- Skip to main content link for keyboard navigation -->
+    <a href="#map" class="skip-link">Saltar al mapa</a>
+    <a href="#stations-list" class="skip-link">Saltar a lista de estaciones</a>
+    
+    <div class="container" role="application" aria-label="Aplicación BiciCoruña AI">
         
-        <div id="weather-card" class="weather-card">
+        <aside id="weather-card" class="weather-card" role="complementary" aria-label="Información meteorológica">
             <div class="weather-main">
-                <span id="w-icon" class="w-icon">⛅</span>
-                <span id="w-temp" class="w-temp">--°</span>
+                <span id="w-icon" class="w-icon" role="img" aria-label="Icono del clima">⛅</span>
+                <span id="w-temp" class="w-temp" aria-label="Temperatura actual">--°</span>
             </div>
             <div class="weather-grid">
-                <div class="w-item"><i class="ph ph-drop"></i> <span id="w-rain">--mm</span></div>
-                <div class="w-item"><i class="ph ph-wind"></i> <span id="w-wind">--km</span></div>
-                <div class="w-item"><i class="ph ph-waves"></i> <span id="w-wave">--m</span></div>
+                <div class="w-item"><i class="ph ph-drop" aria-hidden="true"></i> <span id="w-rain" aria-label="Precipitación">--mm</span></div>
+                <div class="w-item"><i class="ph ph-wind" aria-hidden="true"></i> <span id="w-wind" aria-label="Velocidad del viento">--km</span></div>
+                <div class="w-item"><i class="ph ph-waves" aria-hidden="true"></i> <span id="w-wave" aria-label="Altura de las olas">--m</span></div>
             </div>
-        </div>
+        </aside>
 
-        <div id="stats-modal" class="modal-overlay hidden">
+        <div id="stats-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="stats-modal-title">
             <div class="modal-card">
-                <div class="modal-header"><h3>🏆 Mis Logros</h3><button id="btn-close-stats" class="close-btn">✕</button></div>
-                <div class="stats-grid">
-                    <div class="stat-item"><span class="stat-icon">🚲</span><div class="stat-value" id="stat-km">0</div><div class="stat-label">Km</div></div>
-                    <div class="stat-item"><span class="stat-icon">🌱</span><div class="stat-value" id="stat-co2">0</div><div class="stat-label">Kg CO2</div></div>
-                    <div class="stat-item"><span class="stat-icon">🔥</span><div class="stat-value" id="stat-cal">0</div><div class="stat-label">Kcal</div></div>
+                <div class="modal-header"><h3 id="stats-modal-title">🏆 Mis Logros</h3><button id="btn-close-stats" class="close-btn" aria-label="Cerrar modal de logros">✕</button></div>
+                <div class="stats-grid" role="list" aria-label="Estadísticas personales">
+                    <div class="stat-item" role="listitem"><span class="stat-icon" role="img" aria-label="Bicicleta">🚲</span><div class="stat-value" id="stat-km" aria-label="Kilómetros recorridos">0</div><div class="stat-label">Km</div></div>
+                    <div class="stat-item" role="listitem"><span class="stat-icon" role="img" aria-label="Planta">🌱</span><div class="stat-value" id="stat-co2" aria-label="CO2 ahorrado en kilogramos">0</div><div class="stat-label">Kg CO2</div></div>
+                    <div class="stat-item" role="listitem"><span class="stat-icon" role="img" aria-label="Fuego">🔥</span><div class="stat-value" id="stat-cal" aria-label="Calorías quemadas">0</div><div class="stat-label">Kcal</div></div>
                 </div>
             </div>
         </div>
 
-        <div id="ranking-modal" class="modal-overlay hidden">
+        <div id="ranking-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="ranking-modal-title">
             <div class="modal-card">
-                <div class="modal-header"><h3>🏆 Ranking</h3><button id="btn-close-ranking" class="close-btn">✕</button></div>
-                <div class="ranking-list">
-                    <div class="ranking-item gold"><div class="rank-pos">1</div><div class="rank-info"><strong>Ana G.</strong></div><div class="rank-score">142 km</div></div>
-                    <div class="ranking-item silver"><div class="rank-pos">2</div><div class="rank-info"><strong>Pablo R.</strong></div><div class="rank-score">98 km</div></div>
-                    <div class="ranking-item bronze"><div class="rank-pos">3</div><div class="rank-info"><strong>Tú</strong></div><div class="rank-score" id="user-rank-km">0 km</div></div>
+                <div class="modal-header"><h3 id="ranking-modal-title">🏆 Ranking</h3><button id="btn-close-ranking" class="close-btn" aria-label="Cerrar modal de ranking">✕</button></div>
+                <div class="ranking-list" role="list" aria-label="Tabla de clasificación">
+                    <div class="ranking-item gold" role="listitem" aria-label="Primer lugar: Ana G. con 142 kilómetros"><div class="rank-pos" aria-hidden="true">1</div><div class="rank-info"><strong>Ana G.</strong></div><div class="rank-score">142 km</div></div>
+                    <div class="ranking-item silver" role="listitem" aria-label="Segundo lugar: Pablo R. con 98 kilómetros"><div class="rank-pos" aria-hidden="true">2</div><div class="rank-info"><strong>Pablo R.</strong></div><div class="rank-score">98 km</div></div>
+                    <div class="ranking-item bronze" role="listitem" aria-label="Tercer lugar: Tu posición"><div class="rank-pos" aria-hidden="true">3</div><div class="rank-info"><strong>Tú</strong></div><div class="rank-score" id="user-rank-km" aria-live="polite">0 km</div></div>
                 </div>
             </div>
         </div>
 
-        <div id="report-modal" class="modal-overlay hidden">
+        <div id="report-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="report-modal-title">
             <div class="modal-card">
-                <div class="modal-header"><h3>⚠️ Reportar</h3><button id="btn-close-report" class="close-btn">✕</button></div>
+                <div class="modal-header"><h3 id="report-modal-title">⚠️ Reportar Problema</h3><button id="btn-close-report" class="close-btn" aria-label="Cerrar modal de reporte">✕</button></div>
                 <p style="font-size:0.9rem; color:#666; margin-bottom:15px;">Estación: <b id="report-station-name">...</b></p>
-                <div class="report-options-grid">
-                    <button class="report-chip" onclick="selectReportOption(this, 'bici')">🚲 Bici</button>
-                    <button class="report-chip" onclick="selectReportOption(this, 'anclaje')">🔒 Anclaje</button>
-                    <button class="report-chip" onclick="selectReportOption(this, 'pantalla')">🖥️ Pantalla</button>
-                    <button class="report-chip" onclick="selectReportOption(this, 'suciedad')">🧹 Suciedad</button>
-                </div>
-                <textarea id="report-text" class="report-textarea" placeholder="Detalles..." rows="3"></textarea>
+                <fieldset class="report-options-grid" role="radiogroup" aria-label="Tipo de problema">
+                    <button class="report-chip" onclick="selectReportOption(this, 'bici')" role="radio" aria-checked="false" aria-label="Problema con bicicleta">🚲 Bici</button>
+                    <button class="report-chip" onclick="selectReportOption(this, 'anclaje')" role="radio" aria-checked="false" aria-label="Problema con anclaje">🔒 Anclaje</button>
+                    <button class="report-chip" onclick="selectReportOption(this, 'pantalla')" role="radio" aria-checked="false" aria-label="Problema con pantalla">🖥️ Pantalla</button>
+                    <button class="report-chip" onclick="selectReportOption(this, 'suciedad')" role="radio" aria-checked="false" aria-label="Problema de limpieza">🧹 Suciedad</button>
+                </fieldset>
+                <label for="report-text" class="sr-only">Detalles adicionales del reporte</label>
+                <textarea id="report-text" class="report-textarea" placeholder="Detalles..." rows="3" aria-label="Detalles del problema"></textarea>
                 <div class="file-upload-container">
-                    <label for="report-file" class="file-upload-label"><i class="ph ph-camera"></i> Foto</label>
-                    <input type="file" id="report-file" accept="image/*" hidden onchange="previewImage(event)">
-                    <div id="image-preview" class="hidden"></div>
+                    <label for="report-file" class="file-upload-label"><i class="ph ph-camera" aria-hidden="true"></i> Añadir Foto</label>
+                    <input type="file" id="report-file" accept="image/*" hidden onchange="previewImage(event)" aria-label="Seleccionar imagen para el reporte">
+                    <div id="image-preview" class="hidden" role="img" aria-label="Vista previa de la imagen"></div>
                 </div>
-                <button id="btn-submit-report" class="action-btn warning full-width">Enviar</button>
+                <button id="btn-submit-report" class="action-btn warning full-width" aria-label="Enviar reporte">Enviar Reporte</button>
             </div>
         </div>
 
-        <div id="route-panel" class="route-panel hidden">
+        <!-- Dashboard Modal -->
+        <div id="dashboard-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="dashboard-modal-title">
+            <div class="modal-card modal-large">
+                <div class="modal-header">
+                    <h3 id="dashboard-modal-title">📊 Dashboard de Analítica</h3>
+                    <button id="btn-close-dashboard" class="close-btn" aria-label="Cerrar dashboard">✕</button>
+                </div>
+                <div id="dashboard-content" class="dashboard-content"></div>
+            </div>
+        </div>
+
+        <!-- Tourist Mode Modal -->
+        <div id="tourist-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tourist-modal-title">
+            <div class="modal-card modal-large">
+                <div class="modal-header">
+                    <h3 id="tourist-modal-title">🗺️ Rutas Turísticas</h3>
+                    <button id="btn-close-tourist" class="close-btn" aria-label="Cerrar modo turista">✕</button>
+                </div>
+                <div id="tourist-content"></div>
+            </div>
+        </div>
+
+        <!-- Gamification Modal -->
+        <div id="gamification-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="gamification-modal-title">
+            <div class="modal-card modal-large">
+                <div class="modal-header">
+                    <h3 id="gamification-modal-title">🏆 Logros y Progresión</h3>
+                    <button id="btn-close-gamification" class="close-btn" aria-label="Cerrar logros">✕</button>
+                </div>
+                <div id="gamification-content"></div>
+            </div>
+        </div>
+
+        <aside id="route-panel" class="route-panel hidden" role="complementary" aria-label="Panel de ruta">
             <div class="route-header">
                 <div style="display:flex; align-items:center; gap:8px;">
-                    <span id="route-icon" class="route-icon">🚶</span>
-                    <div class="route-data"><span id="route-time" class="route-time">-- min</span><span id="route-dist" class="route-dist">-- km</span></div>
+                    <span id="route-icon" class="route-icon" role="img" aria-label="Icono de modo de transporte">🚶</span>
+                    <div class="route-data"><span id="route-time" class="route-time" aria-label="Tiempo estimado">-- min</span><span id="route-dist" class="route-dist" aria-label="Distancia">-- km</span></div>
                 </div>
-                <button id="btn-stop-route" class="close-route-btn">✕</button>
+                <button id="btn-stop-route" class="close-route-btn" aria-label="Cancelar ruta">✕</button>
             </div>
-            <button id="btn-finish-trip" class="action-btn success full-width hidden" style="margin-bottom:10px;">🏁 Completar</button>
-            <div class="elevation-box hidden" id="elevation-box"><canvas id="elevationChart"></canvas></div>
-        </div>
+            <button id="btn-finish-trip" class="action-btn success full-width hidden" style="margin-bottom:10px;" aria-label="Completar viaje">🏁 Completar</button>
+            <div class="elevation-box hidden" id="elevation-box" aria-label="Gráfica de elevación"><canvas id="elevationChart" role="img" aria-label="Perfil de elevación de la ruta"></canvas></div>
+        </aside>
 
-        <div class="sidebar-wrapper bottom-sheet" id="main-panel">
-            <div class="drag-zone" id="main-drag-zone"><div class="drag-handle"></div></div>
+        <nav class="sidebar-wrapper bottom-sheet" id="main-panel" role="navigation" aria-label="Panel lateral de control">
+            <div class="drag-zone" id="main-drag-zone" aria-hidden="true"><div class="drag-handle"></div></div>
             <div class="top-controls">
-                <div class="app-header">
+                <header class="app-header">
                     <div class="brand"><h1>🚲 BiciAI</h1></div>
-                    <div class="header-actions">
-                        <button id="btn-ranking" class="theme-btn"><i class="ph ph-trophy"></i></button>
-                        <button id="btn-stats" class="theme-btn"><i class="ph ph-chart-bar"></i></button> 
-                        <button id="btn-heatmap" class="theme-btn"><i class="ph ph-fire"></i></button>
-                        <button id="btn-dark-mode" class="theme-btn"><i class="ph ph-moon"></i></button>
+                    <div class="header-actions" role="toolbar" aria-label="Acciones principales">
+                        <button id="btn-gamification" class="theme-btn" aria-label="Ver logros y gamificación" title="Logros"><i class="ph ph-game-controller" aria-hidden="true"></i></button>
+                        <button id="btn-dashboard" class="theme-btn" aria-label="Ver dashboard de analítica" title="Dashboard"><i class="ph ph-chart-line-up" aria-hidden="true"></i></button>
+                        <button id="btn-tourist" class="theme-btn" aria-label="Modo turista con rutas" title="Modo Turista"><i class="ph ph-map-trifold" aria-hidden="true"></i></button>
+                        <button id="btn-ranking" class="theme-btn" aria-label="Ver ranking de usuarios" title="Ranking"><i class="ph ph-trophy" aria-hidden="true"></i></button>
+                        <button id="btn-stats" class="theme-btn" aria-label="Ver estadísticas personales" title="Estadísticas"><i class="ph ph-chart-bar" aria-hidden="true"></i></button> 
+                        <button id="btn-heatmap" class="theme-btn" aria-label="Alternar mapa de calor" title="Mapa de calor"><i class="ph ph-fire" aria-hidden="true"></i></button>
+                        <button id="btn-dark-mode" class="theme-btn" aria-label="Cambiar tema oscuro" title="Modo oscuro"><i class="ph ph-moon" aria-hidden="true"></i></button>
                     </div>
+                </header>
+                <div class="search-floating" role="search">
+                    <label for="search-input" class="sr-only">Buscar estaciones</label>
+                    <input type="search" id="search-input" placeholder="🔍 Buscar estaciones..." autocomplete="off" aria-label="Buscar estaciones por nombre">
+                    <button id="btn-geo" class="icon-btn" aria-label="Localizar mi posición" title="Mi ubicación"><i class="ph ph-crosshair" aria-hidden="true"></i></button>
                 </div>
-                <div class="search-floating">
-                    <input type="text" id="search-input" placeholder="🔍 Buscar..." autocomplete="off">
-                    <button id="btn-geo" class="icon-btn"><i class="ph ph-crosshair"></i></button>
-                </div>
-                <div class="filters-scroll">
-                    <button class="filter-chip active" data-filter="all">Todas</button>
-                    <button class="filter-chip" data-filter="fav">★ Favoritas</button>
-                    <button class="filter-chip" data-filter="bikes">Con Bicis</button>
-                    <button class="filter-chip" data-filter="slots">Con Huecos</button>
+                <div class="filters-scroll" role="tablist" aria-label="Filtros de estaciones">
+                    <button class="filter-chip active" data-filter="all" role="tab" aria-selected="true" aria-controls="stations-list">Todas</button>
+                    <button class="filter-chip" data-filter="fav" role="tab" aria-selected="false" aria-controls="stations-list">★ Favoritas</button>
+                    <button class="filter-chip" data-filter="bikes" role="tab" aria-selected="false" aria-controls="stations-list">Con Bicis</button>
+                    <button class="filter-chip" data-filter="slots" role="tab" aria-selected="false" aria-controls="stations-list">Con Huecos</button>
                 </div>
             </div>
 
             <div id="station-list-container" class="station-list-container">
-                <div class="list-header" id="list-header-text"><i class="ph ph-map-pin"></i> Estaciones</div>
-                <div id="stations-list" class="stations-list-scroll">
-                    <div class="loading-list">Cargando...</div>
+                <div class="list-header" id="list-header-text"><i class="ph ph-map-pin" aria-hidden="true"></i> Estaciones</div>
+                <div id="stations-list" class="stations-list-scroll" role="list" aria-label="Lista de estaciones" aria-live="polite" aria-busy="false">
+                    <div class="loading-list" role="status" aria-label="Cargando estaciones">Cargando...</div>
                 </div>
             </div>
-        </div>
+        </nav>
 
-        <aside class="station-card bottom-sheet hidden" id="station-card">
-            <div class="drag-zone" id="card-drag-zone"><div class="drag-handle"></div><button class="close-card-btn" id="btn-close-card">✕</button></div>
+        <aside class="station-card bottom-sheet hidden" id="station-card" role="complementary" aria-labelledby="station-name">
+            <div class="drag-zone" id="card-drag-zone" aria-hidden="true"><div class="drag-handle"></div><button class="close-card-btn" id="btn-close-card" aria-label="Cerrar detalles de estación">✕</button></div>
             <div class="card-content" id="station-details">
                 <div class="station-header-row">
                     <div style="flex: 1;">
-                        <div class="title-row"><h3 class="station-title" id="station-name">Estación</h3><button id="btn-fav" class="fav-btn">☆</button></div>
-                        <span class="station-subtitle" id="station-status">--</span>
+                        <div class="title-row"><h3 class="station-title" id="station-name">Estación</h3><button id="btn-fav" class="fav-btn" aria-label="Añadir a favoritos" aria-pressed="false">☆</button></div>
+                        <span class="station-subtitle" id="station-status" aria-live="polite">--</span>
                     </div>
-                    <div class="station-capacity-badge" id="station-capacity">Cap: --</div>
+                    <div class="station-capacity-badge" id="station-capacity" aria-label="Capacidad total">Cap: --</div>
                 </div>
-                <div class="kpi-row">
-                    <div class="mini-kpi"><span class="val" id="st-bikes">-</span><span class="lbl">Bicis</span></div>
-                    <div class="mini-kpi"><span class="val" id="st-slots">-</span><span class="lbl">Huecos</span></div>
+                <div class="kpi-row" role="group" aria-label="Disponibilidad actual">
+                    <div class="mini-kpi"><span class="val" id="st-bikes" aria-label="Bicicletas disponibles">-</span><span class="lbl">Bicis</span></div>
+                    <div class="mini-kpi"><span class="val" id="st-slots" aria-label="Huecos disponibles">-</span><span class="lbl">Huecos</span></div>
                 </div>
-                <div class="ai-planning-card" id="ai-card">
+                <div class="ai-planning-card" id="ai-card" role="region" aria-label="Acciones y planificación">
                     <div class="ai-actions-grid">
-                        <button id="btn-plan-trip" class="ai-action-btn primary full-width"><span><i class="ph ph-magic-wand"></i> Predicción IA</span></button>
+                        <button id="btn-plan-trip" class="ai-action-btn primary full-width" aria-label="Obtener predicción de IA sobre disponibilidad"><span><i class="ph ph-magic-wand" aria-hidden="true"></i> Predicción IA</span></button>
                         <div class="route-buttons-row">
-                            <button id="btn-route-walk" class="ai-action-btn secondary"><i class="ph ph-person-simple-walk"></i> Ir</button>
-                            <button id="btn-route-bike" class="ai-action-btn secondary"><i class="ph ph-bicycle"></i> Coger</button>
+                            <button id="btn-route-walk" class="ai-action-btn secondary" aria-label="Calcular ruta caminando"><i class="ph ph-person-simple-walk" aria-hidden="true"></i> Ir</button>
+                            <button id="btn-route-bike" class="ai-action-btn secondary" aria-label="Calcular ruta en bicicleta"><i class="ph ph-bicycle" aria-hidden="true"></i> Coger</button>
                         </div>
-                        <button id="btn-report" class="ai-action-btn secondary full-width" style="margin-top:5px; color:#e67e22; border-color:#e67e22;"><i class="ph ph-warning"></i> Reportar</button>
+                        <button id="btn-report" class="ai-action-btn secondary full-width" style="margin-top:5px; color:#e67e22; border-color:#e67e22;" aria-label="Reportar problema en esta estación"><i class="ph ph-warning" aria-hidden="true"></i> Reportar</button>
                     </div>
-                    <div id="trip-result" class="trip-result hidden">
-                        <div class="loading-spinner hidden" id="trip-loader"><div class="spinner"></div> Calculando...</div>
-                        <div id="trip-content"></div>
+                    <div id="trip-result" class="trip-result hidden" role="status" aria-live="polite">
+                        <div class="loading-spinner hidden" id="trip-loader" role="status" aria-label="Calculando predicción"><div class="spinner"></div> Calculando...</div>
+                        <div id="trip-content" aria-live="polite"></div>
                     </div>
                 </div>
 
-                <div class="charts-scroll">
+                <div class="charts-scroll" role="region" aria-label="Gráficas de datos">
                     <div class="chart-box">
-                        <h4>📉 Historial (24h)</h4>
-                        <canvas id="historyChart" height="150"></canvas>
+                        <h4 id="history-chart-title">📉 Historial (24h)</h4>
+                        <canvas id="historyChart" height="150" role="img" aria-labelledby="history-chart-title" aria-label="Gráfica de historial de disponibilidad de bicicletas en las últimas 24 horas"></canvas>
                     </div>
                     <div class="chart-box">
-                        <h4>🔮 Predicción IA</h4>
-                        <canvas id="trendChart" height="150"></canvas>
+                        <h4 id="trend-chart-title">🔮 Predicción IA</h4>
+                        <canvas id="trendChart" height="150" role="img" aria-labelledby="trend-chart-title" aria-label="Gráfica de predicción de disponibilidad futura"></canvas>
                     </div>
                 </div>
             </div>
         </aside>
 
-        <main id="map"></main>
-        <div class="map-legend" id="marker-legend">
-            <div class="legend-item"><div class="legend-color" style="background:#2ecc71"></div><span>5+</span></div>
-            <div class="legend-item"><div class="legend-color" style="background:#f39c12"></div><span>1-4</span></div>
-            <div class="legend-item"><div class="legend-color" style="background:#e74c3c"></div><span>0</span></div>
-        </div>
-        <div class="toast" id="toast"><span id="toast-message"></span></div>
+        <main id="map" role="application" aria-label="Mapa interactivo de estaciones"></main>
+        <aside class="map-legend" id="marker-legend" role="complementary" aria-label="Leyenda del mapa">
+            <div class="legend-item"><div class="legend-color" style="background:#2ecc71" role="img" aria-label="Color verde"></div><span>5+ bicis</span></div>
+            <div class="legend-item"><div class="legend-color" style="background:#f39c12" role="img" aria-label="Color naranja"></div><span>1-4 bicis</span></div>
+            <div class="legend-item"><div class="legend-color" style="background:#e74c3c" role="img" aria-label="Color rojo"></div><span>0 bicis</span></div>
+        </aside>
+        <div class="toast" id="toast" role="status" aria-live="assertive" aria-atomic="true"><span id="toast-message"></span></div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -172,6 +216,61 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
+    <!-- Performance utilities -->
+    <script src="performance-utils.js"></script>
+    <!-- Gamification system -->
+    <script src="gamification.js"></script>
+    <!-- Dashboard analytics -->
+    <script src="dashboard.js"></script>
+    <!-- Smart recommender -->
+    <script src="recommender.js"></script>
+    <!-- Error handler -->
+    <script src="error-handler.js"></script>
+    <!-- Tourist mode -->
+    <script src="tourist-mode.js"></script>
+    
     <script src="logic.js?v=22.0"></script>
+    
+    <!-- UI Integrations -->
+    <script src="ui-integrations.js"></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('✅ Service Worker registrado:', registration.scope);
+                        
+                        // Verificar actualizaciones cada hora
+                        setInterval(() => registration.update(), 60 * 60 * 1000);
+                        
+                        // Detectar nueva versión disponible
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // Nueva versión disponible
+                                    if (confirm('Nueva versión disponible. ¿Recargar la app?')) {
+                                        newWorker.postMessage({ type: 'SKIP_WAITING' });
+                                        window.location.reload();
+                                    }
+                                }
+                            });
+                        });
+                    })
+                    .catch(error => console.error('❌ Error al registrar SW:', error));
+            });
+            
+            // Recargar cuando el nuevo SW tome control
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!refreshing) {
+                    refreshing = true;
+                    window.location.reload();
+                }
+            });
+        }
+    </script>
 </body>
 </html>
