@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 import requests
 import holidays
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from supabase import create_client
 from dotenv import load_dotenv
 
@@ -22,7 +22,7 @@ MODEL_DIR = 'data_engine/models_v22/'
 
 # Configurar festivos Galicia auto
 try:
-    current_year = datetime.now().year
+    current_year = datetime.now(timezone.utc).year
     es_holidays = holidays.Spain(years=[current_year, current_year+1], subdiv='GA')
 except:
     es_holidays = {}
@@ -31,7 +31,7 @@ def get_supabase(): return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def fetch_recent_history():
     sb = get_supabase()
-    start_date = (datetime.now() - timedelta(hours=30)).isoformat()
+    start_date = (datetime.now(timezone.utc) - timedelta(hours=30)).isoformat()
     r = sb.table('snapshots').select('station_id, timestamp, available_bikes').gte('timestamp', start_date).execute()
     df = pd.DataFrame(r.data)
     if df.empty: return df
@@ -68,7 +68,7 @@ def main():
     if history.empty: return print("❌ Sin historia")
     
     weather = fetch_weather_forecast()
-    future_dates = [datetime.now().replace(minute=0, second=0, microsecond=0) + timedelta(hours=i) for i in range(1, 25)]
+    future_dates = [datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) + timedelta(hours=i) for i in range(1, 25)]
     all_preds = []
     
     stations = history['station_id'].unique()

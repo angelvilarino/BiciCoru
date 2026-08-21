@@ -6,8 +6,6 @@ const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // VARIABLES GLOBALES
 let map;
 let markers = {};
-let heatLayer = null;
-let isHeatmapActive = false;
 let stationsData = [];
 let historyChart = null;
 let trendChart = null;
@@ -62,109 +60,11 @@ function updateColorClass(element, value) {
     else element.classList.add('text-danger');
 }
 
-// ESTADÍSTICAS Y MODALES
-function loadStats() {
-    try {
-        const stats = JSON.parse(localStorage.getItem('biciStats') || '{"km":0, "co2":0, "cal":0}');
-        const kmEl = document.getElementById('stat-km');
-        const co2El = document.getElementById('stat-co2');
-        const calEl = document.getElementById('stat-cal');
-        
-        if(kmEl) kmEl.textContent = stats.km.toFixed(1);
-        if(co2El) co2El.textContent = stats.co2.toFixed(1);
-        if(calEl) calEl.textContent = stats.cal.toFixed(0);
-    } catch(e) {
-        console.error('Error loading stats:', e);
-    }
-}
-
-function toggleStatsModal() { 
-    const m = document.getElementById('stats-modal'); 
-    if(m){ 
-        m.classList.toggle('hidden'); 
-        if(!m.classList.contains('hidden')) loadStats(); 
-    } 
-}
-
-function toggleRankingModal() { 
-    const m = document.getElementById('ranking-modal'); 
-    if(m){ 
-        const s = JSON.parse(localStorage.getItem('biciStats') || '{"km":0}');
-        const u = document.getElementById('user-rank-km'); 
-        if(u) u.textContent = s.km.toFixed(1)+" km";
-        m.classList.toggle('hidden'); 
-    }
-}
-
-function commitTrip() {
-    if (currentRouteKm <= 0) {
-        showToast('⚠️ No hay ruta activa');
-        return;
-    }
-    
-    try {
-        let s = JSON.parse(localStorage.getItem('biciStats') || '{"km":0, "co2":0, "cal":0}');
-        s.km += parseFloat(currentRouteKm); 
-        s.co2 += parseFloat(currentRouteKm) * 0.12; 
-        s.cal += parseFloat(currentRouteKm) * 25;
-        localStorage.setItem('biciStats', JSON.stringify(s));
-        
-        // Actualizar estadísticas avanzadas para gamificación
-        if (typeof Gamification !== 'undefined') {
-            const hour = new Date().getHours();
-            const advStats = JSON.parse(localStorage.getItem('advancedStats') || '{}');
-            
-            advStats.totalTrips = (advStats.totalTrips || 0) + 1;
-            advStats.uniqueStations = advStats.uniqueStations || new Set();
-            if (currentStation) {
-                if (Array.isArray(advStats.uniqueStations)) {
-                    advStats.uniqueStations = new Set(advStats.uniqueStations);
-                }
-                advStats.uniqueStations.add(currentStation.station_id);
-            }
-            advStats.uniqueStations = Array.from(advStats.uniqueStations);
-            
-            if (hour < 7) advStats.earlyRides = (advStats.earlyRides || 0) + 1;
-            if (hour >= 22) advStats.nightRides = (advStats.nightRides || 0) + 1;
-            
-            advStats.longestRide = Math.max(advStats.longestRide || 0, currentRouteKm);
-            advStats.weeklyRides = (advStats.weeklyRides || 0) + 1; // Esto debería resetearse semanalmente
-            
-            localStorage.setItem('advancedStats', JSON.stringify(advStats));
-            
-            // Actualizar racha
-            Gamification.updateStreak();
-            
-            // Verificar logros
-            setTimeout(() => {
-                const newAchievements = Gamification.checkAchievements();
-                if (newAchievements.length > 0) {
-                    console.log('🎉 New achievements unlocked:', newAchievements);
-                }
-            }, 500);
-        }
-        
-        showToast(`🎉 Viaje registrado: +${currentRouteKm}km`);
-        document.getElementById('btn-finish-trip')?.classList.add('hidden');
-        clearUI(false); 
-        setTimeout(toggleStatsModal, 500); 
-    } catch(e) {
-        console.error('Error committing trip:', e);
-        showToast('❌ Error al registrar viaje');
-    }
-}
-
+// FAVORITOS
 function toggleFavorite(event) {
-    // PROTECCIÓN: Verificar que el click viene del botón de favoritos
-    if (event && event.target && event.target.id !== 'btn-fav') {
-        console.warn('toggleFavorite llamado desde elemento incorrecto:', event.target);
-        return;
-    }
-    
-    // Prevenir propagación para que solo el botón estrella active favoritos
     if (event) {
-        event.stopPropagation();
-        event.preventDefault();
+        if (typeof event.stopPropagation === 'function') event.stopPropagation();
+        if (typeof event.preventDefault === 'function') event.preventDefault();
     }
     
     if (!currentStation) return;
@@ -358,7 +258,6 @@ function setupUI() {
         setupFilters(); 
         setupTheme(); 
         setupSearch(); 
-        loadStats();
         
         // Uso de safeAddListener para evitar duplicados
         safeAddListener('btn-geo', () => { 
@@ -366,7 +265,6 @@ function setupUI() {
             forceLocate(); 
         });
         
-        safeAddListener('btn-heatmap', toggleHeatmap);
         safeAddListener('btn-stop-route', () => clearUI(false));
         safeAddListener('btn-close-card', () => clearUI(true));
         
@@ -377,12 +275,9 @@ function setupUI() {
                 e.stopPropagation();
                 e.preventDefault();
                 toggleFavorite(e);
-            }, true); // useCapture = true para capturar antes que otros
+            }, true);
             btnFav.dataset.listenerAttached = 'true';
         }
-        
-        safeAddListener('btn-finish-trip', commitTrip);
-        safeAddListener('btn-stats', toggleStatsModal);
         
         // Botones de acción de estación (usan currentStation)
         safeAddListener('btn-route-walk', () => {
@@ -395,22 +290,7 @@ function setupUI() {
             if(currentStation) calcIA(currentStation);
         });
         safeAddListener('btn-report', openReportModal);
-        
-        // Añadir botón de ranking si no existe
-        const headerActions = document.querySelector('.header-actions');
-        if(headerActions && !document.getElementById('btn-ranking')) {
-            const rankBtn = document.createElement('button'); 
-            rankBtn.id = 'btn-ranking'; 
-            rankBtn.className = 'theme-btn'; 
-            rankBtn.innerHTML = '<i class="ph ph-trophy"></i>';
-            headerActions.insertBefore(rankBtn, headerActions.firstChild); 
-            rankBtn.addEventListener('click', toggleRankingModal);
-        } else {
-            safeAddListener('btn-ranking', toggleRankingModal);
-        }
 
-        safeAddListener('btn-close-stats', toggleStatsModal);
-        safeAddListener('btn-close-ranking', toggleRankingModal);
         safeAddListener('btn-close-report', closeReportModal);
         safeAddListener('btn-submit-report', submitReport);
 
@@ -479,6 +359,17 @@ async function loadData() {
         
         // Guardar en cache (2 minutos)
         PerfUtils.cache.set('stations_data', stationsData, 120000);
+        window.stationsData = stationsData;
+        window.currentStations = stationsData;
+        window.loadStationDetails = loadStationDetails;
+        window.openStationById = (id) => {
+            const st = stationsData.find(s => String(s.station_id) === String(id));
+            if(st) {
+                loadStationDetails(st);
+                return true;
+            }
+            return false;
+        };
         
         updateMap(); 
         updateStationsList();
@@ -612,23 +503,6 @@ function updateMap() {
         map.removeLayer(markers[id]);
     } 
     markers = {};
-    
-    // Limpiar heatmap
-    if(heatLayer) { 
-        map.removeLayer(heatLayer); 
-        heatLayer = null; 
-    }
-    
-    // Modo heatmap
-    if(isHeatmapActive && typeof L.heatLayer !== 'undefined') {
-        const points = stationsData.map(s => [
-            s.latitude, 
-            s.longitude, 
-            Math.min(s.available_bikes / 10, 1)
-        ]);
-        heatLayer = L.heatLayer(points, {radius: 30, blur: 20}).addTo(map); 
-        return;
-    }
     
     const favs = getFavorites();
     
@@ -767,7 +641,11 @@ function drawRoute(dest, mode = 'walk') {
     const color = mode === 'walk' ? '#667eea' : '#e67e22';
     
     const iconEl = document.getElementById('route-icon');
-    if(iconEl) iconEl.textContent = mode === 'walk' ? '🚶' : '🚴';
+    if(iconEl) {
+        iconEl.innerHTML = mode === 'walk' ? 
+            '<i class="ph-bold ph-person-simple-walk" style="font-size:1.6rem; color:#6366f1;"></i>' : 
+            '<i class="ph-bold ph-bicycle" style="font-size:1.6rem; color:#e67e22;"></i>';
+    }
     
     const timeEl = document.getElementById('route-time');
     if(timeEl) timeEl.textContent = "Calculando...";
@@ -798,16 +676,6 @@ function drawRoute(dest, mode = 'walk') {
         
         if(timeEl) timeEl.textContent = Math.round(route.summary.totalTime / 60) + ' min';
         if(distEl) distEl.textContent = km + ' km';
-        
-        const finishBtn = document.getElementById('btn-finish-trip');
-        if(finishBtn) { 
-            if(mode === 'bike') {
-                finishBtn.classList.remove('hidden'); 
-                finishBtn.innerHTML = `🏁 Completar (+${km}km)`;
-            } else {
-                finishBtn.classList.add('hidden'); 
-            }
-        }
         
         calculateElevationProfile(route.coordinates);
     });
@@ -880,7 +748,25 @@ function drawElevationChart(elevation) {
             responsive: true, 
             maintainAspectRatio: false, 
             interaction: {mode: 'index', intersect: false},
-            plugins: {legend: {display: false}}, 
+            plugins: {
+                legend: {display: false},
+                tooltip: {
+                    callbacks: {
+                        title: function(context) {
+                            const i = context[0].dataIndex;
+                            const total = elevation.length;
+                            if (currentRouteKm && total > 1) {
+                                const dist = ((i / (total - 1)) * currentRouteKm).toFixed(2);
+                                return `Distancia: ${dist} km`;
+                            }
+                            return `Punto del trayecto: ${i + 1} de ${total}`;
+                        },
+                        label: function(context) {
+                            return `Altitud: ${Math.round(context.parsed.y)} metros`;
+                        }
+                    }
+                }
+            }, 
             scales: {
                 x: {display: false},
                 y: {display: false}
@@ -946,17 +832,6 @@ function forceLocate() {
     }
 }
 
-function toggleHeatmap() {
-    if(typeof L === 'undefined' || typeof L.heatLayer === 'undefined') {
-        showToast('❌ Heatmap no disponible');
-        return;
-    }
-    
-    isHeatmapActive = !isHeatmapActive; 
-    document.getElementById('btn-heatmap')?.classList.toggle('active');
-    updateMap();
-}
-
 function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
     const sheet = document.getElementById(sheetId);
     const handle = document.getElementById(dragZoneId);
@@ -967,13 +842,30 @@ function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
     let initialY = 0;
     let isDragging = false;
     
+    const getTranslateY = (el) => {
+        try {
+            const st = window.getComputedStyle(el);
+            const tr = st.transform || st.webkitTransform;
+            if (!tr || tr === 'none') return 0;
+            if (window.DOMMatrix) {
+                const mat = new DOMMatrix(tr);
+                return mat.m42 || mat.f || 0;
+            }
+            if (window.WebKitCSSMatrix) {
+                const mat = new WebKitCSSMatrix(tr);
+                return mat.m42 || 0;
+            }
+        } catch(e) {
+            console.warn('Matrix error:', e);
+        }
+        return 0;
+    };
+    
     handle.addEventListener('touchstart', e => {
         isDragging = true;
         startY = e.touches[0].clientY;
         sheet.style.transition = 'none';
-        
-        const transform = new WebKitCSSMatrix(window.getComputedStyle(sheet).transform);
-        initialY = transform.m42;
+        initialY = getTranslateY(sheet);
     }, {passive: false});
     
     window.addEventListener('touchmove', e => {
@@ -996,8 +888,7 @@ function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
         isDragging = false;
         sheet.style.transition = 'transform 0.3s ease';
         
-        const transform = new WebKetCSSMatrix(window.getComputedStyle(sheet).transform);
-        const currentY = transform.m42;
+        const currentY = getTranslateY(sheet);
         const closeThreshold = window.innerHeight - visibleHeight;
         
         sheet.style.transform = `translateY(${currentY < closeThreshold / 2 ? 0 : closeThreshold}px)`;
@@ -1030,20 +921,24 @@ async function loadRealCharts(stationId) {
 
     // 1. HISTORIAL (24h)
     try {
-        const yesterday = new Date();
-        yesterday.setHours(yesterday.getHours() - 24);
+        const now = new Date();
+        const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         
         const {data: history} = await client
             .from('snapshots')
             .select('timestamp, available_bikes')
             .eq('station_id', stationId)
             .gte('timestamp', yesterday.toISOString())
+            .lte('timestamp', now.toISOString())
             .order('timestamp', {ascending: true});
         
-        const histLabels = (history || []).map(d => 
+        // Filtrar registros estrictamente anteriores o iguales a la hora actual
+        const validHistory = (history || []).filter(d => new Date(d.timestamp).getTime() <= now.getTime());
+        
+        const histLabels = validHistory.map(d => 
             new Date(d.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
         );
-        const histData = (history || []).map(d => d.available_bikes);
+        const histData = validHistory.map(d => d.available_bikes);
 
         historyChart = new Chart(historyCanvas.getContext('2d'), {
             type: 'line',
@@ -1052,11 +947,11 @@ async function loadRealCharts(stationId) {
                 datasets: [{
                     label: 'Bicis disponibles',
                     data: histData,
-                    borderColor: '#667eea',
-                    backgroundColor: 'rgba(102,126,234,0.1)',
+                    borderColor: '#6366f1',
+                    backgroundColor: 'rgba(99, 102, 241, 0.12)',
                     fill: true,
                     pointRadius: 0,
-                    tension: 0.4
+                    tension: 0.35
                 }]
             },
             options: {
@@ -1079,34 +974,34 @@ async function loadRealCharts(stationId) {
 
     // 2. PREDICCIÓN IA
     try {
-        const now = new Date().toISOString();
+        const now = new Date();
+        const nowIso = now.toISOString();
         
         const {data: predictions} = await client
             .from('predicciones')
             .select('prediction_date, predicted_bikes')
             .eq('station_id', stationId)
-            .gte('prediction_date', now)
+            .gte('prediction_date', nowIso)
             .order('prediction_date', {ascending: true})
             .limit(12);
         
         let predLabels = [];
         let predData = [];
         
-        if(predictions && predictions.length > 0) {
-            predLabels = predictions.map(d => 
+        const validPreds = (predictions || []).filter(d => new Date(d.prediction_date).getTime() >= (now.getTime() - 10 * 60 * 1000));
+        
+        if(validPreds && validPreds.length > 0) {
+            predLabels = validPreds.map(d => 
                 new Date(d.prediction_date).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
             );
-            predData = predictions.map(d => d.predicted_bikes);
+            predData = validPreds.map(d => Math.max(0, Math.round(d.predicted_bikes)));
         } else {
-            // Fallback: generar datos simulados
+            // Fallback predictivo progresivo
             const lastValue = currentStation?.available_bikes || 5;
-            
             for(let i = 1; i <= 6; i++) {
-                const futureTime = new Date();
-                futureTime.setHours(futureTime.getHours() + i);
+                const futureTime = new Date(now.getTime() + i * 3600 * 1000);
                 predLabels.push(futureTime.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
-                
-                let value = lastValue + Math.floor(Math.random() * 4) - 2;
+                let value = lastValue + Math.floor(Math.random() * 3) - 1;
                 if(value < 0) value = 0;
                 predData.push(value);
             }
@@ -1117,16 +1012,28 @@ async function loadRealCharts(stationId) {
             data: {
                 labels: predLabels,
                 datasets: [{
-                    label: 'Predicción IA',
+                    label: 'Bicis disponibles',
                     data: predData,
-                    backgroundColor: '#9b59b6',
-                    borderRadius: 3
+                    backgroundColor: '#8b5cf6',
+                    borderRadius: 4
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {legend: {display: false}},
+                plugins: {
+                    legend: {display: false},
+                    tooltip: {
+                        callbacks: {
+                            title: function(context) {
+                                return 'Hora: ' + context[0].label;
+                            },
+                            label: function(context) {
+                                return 'Bicis disponibles: ' + context.parsed.y;
+                            }
+                        }
+                    }
+                },
                 scales: {
                     x: {ticks: {maxTicksLimit: 6, maxRotation: 0}},
                     y: {beginAtZero: true}
@@ -1154,7 +1061,7 @@ async function calcIA(dest) {
     
     if (!userLocation) {
         map.locate();
-        showToast('📍 Obteniendo ubicación...');
+        showToast('📍 Obteniendo ubicación para calcular ruta...');
         return;
     }
     
@@ -1176,26 +1083,26 @@ async function calcIA(dest) {
         }
         
         const color = availableSlots > 2 ? 'green' : (availableSlots > 0 ? 'orange' : 'red');
-        const statusText = availableSlots > 2 ? 'Alta Probabilidad' : 'Riesgo';
-        const icon = availableSlots > 2 ? 'check-circle' : 'warning';
+        const statusText = availableSlots > 2 ? 'Alta Probabilidad de Disponibilidad' : (availableSlots > 0 ? 'Disponibilidad Ajustada' : 'Riesgo de Sin Huecos');
+        const icon = availableSlots > 2 ? 'check-circle' : 'warning-circle';
         
         if(content) {
             content.innerHTML = `
                 <div class="status-pill status-${color}">
-                    <i class="ph ph-${icon}"></i> ${statusText}
+                    <i class="ph-bold ph-${icon}"></i> ${statusText}
                 </div>
-                <div style="font-size:0.9rem; margin-top:8px;">
-                    Llegada: <b>${arrival.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</b>
+                <div style="font-size:0.9rem; margin-top:8px; color:var(--text-main);">
+                    Llegada estimada: <b>${arrival.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</b>
                 </div>
-                <div style="font-size:0.85rem; color:#666; margin-top:4px;">
-                    Se esperan <b>~${Math.max(0, availableSlots)} huecos</b>
+                <div style="font-size:0.85rem; color:var(--text-sub); margin-top:4px;">
+                    Previsión del modelo: <b>~${Math.max(0, availableSlots)} huecos libres</b> y <b>~${Math.max(0, dest.total_capacity - availableSlots)} bicis</b>
                 </div>
             `;
         }
     } catch(e) {
         console.error('IA calc error:', e);
         if(content) {
-            content.innerHTML = `<div style="color:#e74c3c;">Error en predicción</div>`;
+            content.innerHTML = `<div style="color:var(--status-red);">Error al consultar predicción</div>`;
         }
     } finally {
         if(loader) loader.classList.add('hidden');

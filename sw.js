@@ -3,24 +3,24 @@
  * PWA con cache-first strategy
  */
 
-const CACHE_VERSION = 'bicoruna-v1.0.0';
+const CACHE_VERSION = 'bicoruna-v26.0';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DATA_CACHE = `${CACHE_VERSION}-data`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
 
 // Archivos estáticos para cachear
 const STATIC_FILES = [
-    '/',
-    '/index.html',
-    '/style.css',
-    '/logic.js',
-    '/performance-utils.js',
-    '/gamification.js',
-    '/dashboard.js',
-    '/recommender.js',
-    '/error-handler.js',
-    '/tourist-mode.js',
-    '/manifest.json'
+    './',
+    './index.html',
+    './style.css',
+    './features-styles.css',
+    './logic.js',
+    './ui-integrations.js',
+    './performance-utils.js',
+    './dashboard.js',
+    './recommender.js',
+    './error-handler.js',
+    './manifest.json'
 ];
 
 // Recursos externos críticos
@@ -112,8 +112,13 @@ self.addEventListener('fetch', event => {
         return;
     }
     
-    // Archivos estáticos - Cache First
-    if (STATIC_FILES.some(file => url.pathname === file) || EXTERNAL_RESOURCES.some(res => url.href === res)) {
+    // Archivos estáticos locales - Network First con fallback a cache
+    if (STATIC_FILES.some(file => url.pathname === file) || url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || url.pathname.endsWith('.html')) {
+        event.respondWith(networkFirstStrategy(request, STATIC_CACHE, 5 * 60 * 1000));
+        return;
+    }
+    
+    if (EXTERNAL_RESOURCES.some(res => url.href === res)) {
         event.respondWith(cacheFirstStrategy(request, STATIC_CACHE));
         return;
     }

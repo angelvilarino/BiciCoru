@@ -1,12 +1,10 @@
-name: Deploy simple web DEF
+name: 🚀 Desplegar Web Pública (GitHub Pages)
 
 on:
   push:
     branches: ["main"]
-  # Permite ejecutarlo manualmente desde la pestaña Actions
   workflow_dispatch:
 
-# Permisos necesarios
 permissions:
   contents: read
   pages: write
@@ -14,10 +12,9 @@ permissions:
 
 concurrency:
   group: "pages"
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  # TRABAJO 1: CONSTRUIR Y SUBIR
   build:
     runs-on: ubuntu-latest
     steps:
@@ -25,21 +22,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v5
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Sube todo el directorio actual
           path: '.'
 
-  # TRABAJO 2: DESPLEGAR (Espera a que termine 'build')
   deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: build  # <--- ESTO ES LA CLAVE: Espera a que 'build' termine
+    needs: build
     steps:
       - name: Deploy to GitHub Pages
         id: deployment

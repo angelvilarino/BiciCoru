@@ -5,7 +5,7 @@ Collector Mejorado v2: Datos + Clima + Limpieza Automática
 import os
 import requests
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -98,7 +98,7 @@ def upsert_stations(supabase: Client, stations):
             "latitude": station.get("latitude", 0.0),
             "longitude": station.get("longitude", 0.0),
             "total_capacity": free_bikes + empty_slots,
-            "updated_at": datetime.now().isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }
         station_records.append(record)
     
@@ -118,6 +118,8 @@ def insert_snapshots(supabase: Client, stations, timestamp):
     # Redondear timestamp al intervalo de 10 minutos más cercano
     # Esto evita duplicados si el script corre 2 veces muy seguido
     dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
     minute = (dt.minute // 10) * 10
     normalized_timestamp = dt.replace(minute=minute, second=0, microsecond=0).isoformat()
     
@@ -272,7 +274,7 @@ def main():
         return
     
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    timestamp = datetime.now().isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
     
     # 1. Descargar datos de bicis
     stations = fetch_station_data()
