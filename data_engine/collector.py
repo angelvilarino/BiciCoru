@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 # Cargar variables de entorno
 load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 # Configuración
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -37,8 +38,8 @@ CORUNA_LAT = 43.3623
 CORUNA_LON = -8.4115
 
 # Configuración de retención de datos
-SNAPSHOT_RETENTION_DAYS = 30  # Mantener 30 días de snapshots
-CLIMA_RETENTION_DAYS = 30
+SNAPSHOT_RETENTION_DAYS = 365  # Mantener 365 días (1 año) de snapshots
+CLIMA_RETENTION_DAYS = 365     # Mantener 365 días de clima
 
 
 def fetch_station_data():
@@ -114,10 +115,10 @@ def insert_snapshots(supabase: Client, stations, timestamp):
     """Inserta snapshots (datos que cambian) con protección contra duplicados."""
     snapshot_records = []
     
-    # Redondear timestamp a la hora más cercana de 15 minutos
+    # Redondear timestamp al intervalo de 10 minutos más cercano
     # Esto evita duplicados si el script corre 2 veces muy seguido
     dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-    minute = (dt.minute // 15) * 15
+    minute = (dt.minute // 10) * 10
     normalized_timestamp = dt.replace(minute=minute, second=0, microsecond=0).isoformat()
     
     for station in stations:
@@ -177,7 +178,7 @@ def insert_weather(supabase: Client, weather_data, timestamp):
         }
         
         # Upsert: actualiza si ya existe para esta hora
-        result = supabase.table("clima").upsert(weather_record).execute()
+        result = supabase.table("clima").upsert(weather_record, on_conflict="timestamp").execute()
         logger.info(f"✅ Clima guardado: {weather_record['temperature']}°C")
         return result
     except Exception as e:
@@ -188,11 +189,13 @@ def insert_weather(supabase: Client, weather_data, timestamp):
 def cleanup_old_data(supabase: Client):
     """
     Limpia datos antiguos para evitar crecimiento infinito de la BD.
-    - Snapshots: elimina registros > 30 días
-    - Clima: elimina registros > 30 días
+    - Snapshots: elimina registros > SNAPSHOT_RETENTION_DAYS (365 días)
+    - Clima: elimina registros > CLIMA_RETENTION_DAYS (365 días)
+    - Predicciones: elimina predicciones con fecha pasada
     """
     try:
         cutoff_date = (datetime.now() - timedelta(days=SNAPSHOT_RETENTION_DAYS)).isoformat()
+        now_iso = datetime.now().isoformat()
         
         # Contar registros antes de borrar
         count_snapshots = supabase.table("snapshots")\
@@ -204,27 +207,29 @@ def cleanup_old_data(supabase: Client):
             .select("id", count="exact")\
             .lt("timestamp", cutoff_date)\
             .execute()
+
+        count_predicciones = supabase.table("predicciones")\
+            .select("id", count="exact")\
+            .lt("prediction_date", now_iso)\
+            .execute()
         
         total_snapshots = count_snapshots.count if hasattr(count_snapshots, 'count') else 0
         total_clima = count_clima.count if hasattr(count_clima, 'count') else 0
+        total_predicciones = count_predicciones.count if hasattr(count_predicciones, 'count') else 0
         
         if total_snapshots > 0:
-            # Eliminar snapshots antiguos
-            supabase.table("snapshots")\
-                .delete()\
-                .lt("timestamp", cutoff_date)\
-                .execute()
+            supabase.table("snapshots").delete().lt("timestamp", cutoff_date).execute()
             logger.info(f"🗑️ Eliminados {total_snapshots} snapshots antiguos")
         
         if total_clima > 0:
-            # Eliminar clima antiguo
-            supabase.table("clima")\
-                .delete()\
-                .lt("timestamp", cutoff_date)\
-                .execute()
+            supabase.table("clima").delete().lt("timestamp", cutoff_date).execute()
             logger.info(f"🗑️ Eliminados {total_clima} registros de clima antiguos")
+
+        if total_predicciones > 0:
+            supabase.table("predicciones").delete().lt("prediction_date", now_iso).execute()
+            logger.info(f"🗑️ Eliminadas {total_predicciones} predicciones caducadas")
         
-        if total_snapshots == 0 and total_clima == 0:
+        if total_snapshots == 0 and total_clima == 0 and total_predicciones == 0:
             logger.info("✅ No hay datos antiguos para limpiar")
             
     except Exception as e:

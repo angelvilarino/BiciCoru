@@ -19,10 +19,12 @@ import warnings
 
 warnings.filterwarnings('ignore')
 load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
 MODEL_DIR = 'data_engine/models_v22/'
+TRAINING_WINDOW_DAYS = 365  # Usar hasta 365 días de histórico para entrenar
 
 # Configuración del Modelo
 MODEL_PARAMS = {
@@ -41,7 +43,7 @@ def fetch_data():
     print("📥 Descargando historial...")
     try:
         supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-        days_ago = (datetime.now() - timedelta(days=60)).isoformat()
+        days_ago = (datetime.now() - timedelta(days=TRAINING_WINDOW_DAYS)).isoformat()
         
         all_data = []
         page = 0
@@ -82,7 +84,7 @@ def fetch_data():
 def fetch_weather():
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        days_ago = (datetime.now() - timedelta(days=60)).isoformat()
+        days_ago = (datetime.now() - timedelta(days=TRAINING_WINDOW_DAYS)).isoformat()
         r = supabase.table("clima").select("timestamp, temperature, rain_1h, wind_speed").gte("timestamp", days_ago).execute()
         if not r.data: return pd.DataFrame()
         
