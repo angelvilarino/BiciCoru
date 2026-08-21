@@ -4,26 +4,31 @@ Plataforma inteligente y en tiempo real para la monitorización, análisis predi
 
 ---
 
-## 🌐 Cómo Acceder y Ejecutar la Web
+## 🌐 Cómo Acceder a la Web
 
-Para abrir y utilizar la aplicación:
+### 🔗 Enlace Web Público
+La aplicación está desplegada públicamente y es accesible desde cualquier dispositivo en:
+👉 **[https://angelvilarino.github.io/BiciCoru/](https://angelvilarino.github.io/BiciCoru/)**
 
-### Opción 1: Apertura directa
-Puedes abrir directamente el archivo `index.html` haciendo doble clic sobre él o arrastrándolo a cualquier navegador web moderno (Google Chrome, Mozilla Firefox, Safari, Microsoft Edge).
+---
 
-### Opción 2: Servidor local (Recomendado)
-Para una experiencia óptima con carga de módulos y caché:
+### 💻 Ejecución en Local
+Si deseas ejecutar la aplicación en tu máquina:
 
+#### Opción 1: Servidor local (Recomendado)
 ```bash
 # 1. Abre la terminal en la carpeta del proyecto
 cd /Users/mangelvilarino/Desktop/Proyectos/ProyectoBicis
 
-# 2. Lanza un servidor local ligero con Python
+# 2. Inicia un servidor local ligero con Python
 python3 -m http.server 8000
 
 # 3. Abre en tu navegador:
 http://localhost:8000
 ```
+
+#### Opción 2: Apertura directa
+Puedes abrir directamente el archivo `index.html` haciendo doble clic sobre él en tu navegador web (Google Chrome, Safari, Firefox, Edge).
 
 ---
 
