@@ -303,7 +303,7 @@ self.addEventListener('push', event => {
     const data = event.data ? event.data.json() : {};
     
     const options = {
-        body: data.body || 'Nueva notificación de BiciCoruña',
+        body: data.body || 'Nueva notificación de PedalIA',
         icon: '/icon-192.png',
         badge: '/badge-72.png',
         vibrate: [200, 100, 200],
@@ -313,7 +313,7 @@ self.addEventListener('push', event => {
     };
     
     event.waitUntil(
-        self.registration.showNotification(data.title || 'BiciCoruña AI', options)
+        self.registration.showNotification(data.title || 'PedalIA', options)
     );
 });
 

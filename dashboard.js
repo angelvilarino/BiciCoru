@@ -590,14 +590,12 @@ class AdvancedDashboard {
         // Filtros
         if (this.stationFilter === 'bikes') {
             list = list.filter(s => s.available_bikes > 0);
-        } else if (this.stationFilter === 'empty') {
-            list = list.filter(s => s.available_bikes === 0);
         } else if (this.stationFilter === 'slots') {
             list = list.filter(s => s.available_slots > 0);
+        } else if (this.stationFilter === 'empty') {
+            list = list.filter(s => s.available_bikes === 0);
         } else if (this.stationFilter === 'full') {
             list = list.filter(s => s.available_slots === 0);
-        } else if (this.stationFilter === 'high') {
-            list = list.filter(s => s.available_bikes >= 5);
         }
 
         // Búsqueda
@@ -630,9 +628,10 @@ class AdvancedDashboard {
                 <div class="dash-filters-row">
                     <div class="dash-filter-chips">
                         <button class="dash-chip ${this.stationFilter === 'all' ? 'active' : ''}" data-filter="all">Todas (${stats.totalStations})</button>
-                        <button class="dash-chip ${this.stationFilter === 'high' ? 'active' : ''}" data-filter="high">5+ Bicis (${stats.highAvailabilityStations.length})</button>
-                        <button class="dash-chip ${this.stationFilter === 'empty' ? 'active' : ''}" data-filter="empty">🔴 0 Bicis (${stats.emptyStations.length})</button>
-                        <button class="dash-chip ${this.stationFilter === 'full' ? 'active' : ''}" data-filter="full">🔵 0 Huecos (${stats.fullStations.length})</button>
+                        <button class="dash-chip ${this.stationFilter === 'bikes' ? 'active' : ''}" data-filter="bikes">Con Bicis (${stats.totalStations - stats.emptyStations.length})</button>
+                        <button class="dash-chip ${this.stationFilter === 'slots' ? 'active' : ''}" data-filter="slots">Con Huecos (${stats.totalStations - stats.fullStations.length})</button>
+                        <button class="dash-chip ${this.stationFilter === 'empty' ? 'active' : ''}" data-filter="empty">🔴 Vacías (${stats.emptyStations.length})</button>
+                        <button class="dash-chip ${this.stationFilter === 'full' ? 'active' : ''}" data-filter="full">🔵 Llenas (${stats.fullStations.length})</button>
                     </div>
 
                     <div class="dash-sort-select-wrap">
@@ -648,53 +647,47 @@ class AdvancedDashboard {
                 </div>
             </div>
 
-            <!-- Grid de Estaciones - Alta Densidad Operativa -->
+            <!-- Tabla de alta densidad / Cards de Estaciones -->
             <div class="dash-stations-grid">
                 ${list.length === 0 ? `
                     <div class="dash-empty-state">
-                        <i class="ph-bold ph-bicycle"></i>
-                        <p>No se encontraron estaciones con los filtros seleccionados.</p>
+                        <i class="ph-bold ph-buildings"></i>
+                        <p>No hay estaciones que coincidan con los filtros seleccionados.</p>
                     </div>
                 ` : list.map(st => {
-                    const isCriticalEmpty = st.available_bikes === 0;
-                    const isCriticalFull = st.available_slots === 0;
-                    const statusClass = isCriticalEmpty 
-                        ? 'status-critical-empty' 
-                        : (isCriticalFull ? 'status-critical-full' : (st.available_bikes >= 5 ? 'status-optimal' : 'status-med'));
+                    const occPct = st.occupancyPercent;
+                    const occStatus = occPct === 0 ? 'empty' : (st.available_slots === 0 ? 'full' : (occPct >= 50 ? 'high' : 'med'));
                     
-                    const barFillClass = isCriticalEmpty ? 'bg-danger' : (isCriticalFull ? 'bg-info' : (st.available_bikes >= 5 ? 'bg-success' : 'bg-warning'));
-
                     return `
-                        <div class="dash-station-card ${statusClass}" data-station-id="${st.station_id}">
-                            <div class="station-card-top">
-                                <div class="st-card-name-group">
-                                    <span class="st-id-tag">#${st.station_id}</span>
-                                    <strong class="st-name" title="${st.name}">${st.name}</strong>
+                        <div class="dash-station-card ${occStatus}" data-station-id="${st.station_id}">
+                            <div class="st-card-top">
+                                <div class="st-id-name">
+                                    <span class="st-num">#${st.station_id}</span>
+                                    <strong class="st-name">${st.name}</strong>
                                 </div>
-                                ${isCriticalEmpty 
-                                    ? `<span class="st-status-badge badge-empty"><i class="ph-bold ph-warning-octagon"></i> 0 Bicis</span>` 
-                                    : (isCriticalFull 
-                                        ? `<span class="st-status-badge badge-full"><i class="ph-bold ph-prohibit"></i> 0 Huecos</span>` 
-                                        : `<span class="st-status-badge badge-normal">${st.occupancyPercent}%</span>`)}
+                                <span class="st-occ-pill ${occStatus}">${occPct}%</span>
                             </div>
 
-                            <div class="st-card-bar-wrap">
-                                <div class="st-card-bar-fill ${barFillClass}" style="width:${Math.max(4, st.occupancyPercent)}%"></div>
+                            <div class="st-bar-container">
+                                <div class="st-bar-fill ${occStatus}" style="width: ${occPct}%"></div>
                             </div>
 
-                            <!-- Métricas Densas Estandarizadas por Iconos -->
-                            <div class="st-card-metrics-dense">
-                                <div class="st-metric-col">
-                                    <div class="st-metric-col-header"><i class="ph-bold ph-bicycle"></i></div>
-                                    <span class="st-metric-col-val ${st.available_bikes === 0 ? 'text-danger' : 'text-success'}">${st.available_bikes}</span>
+                            <div class="st-grid-dense">
+                                <div class="st-cell">
+                                    <span class="st-cell-lbl"><i class="ph-bold ph-bicycle text-success"></i> Bicis</span>
+                                    <span class="st-cell-val font-bold ${st.available_bikes === 0 ? 'text-danger' : 'text-success'}">${st.available_bikes}</span>
                                 </div>
-                                <div class="st-metric-col">
-                                    <div class="st-metric-col-header"><i class="ph-bold ph-lock-key-open"></i></div>
-                                    <span class="st-metric-col-val ${st.available_slots === 0 ? 'text-danger' : 'text-info'}">${st.available_slots}</span>
+                                <div class="st-cell">
+                                    <span class="st-cell-lbl"><i class="ph-bold ph-parking text-info"></i> Huecos</span>
+                                    <span class="st-cell-val font-bold ${st.available_slots === 0 ? 'text-danger' : 'text-info'}">${st.available_slots}</span>
                                 </div>
-                                <div class="st-metric-col">
-                                    <div class="st-metric-col-header"><i class="ph-bold ph-stack"></i></div>
-                                    <span class="st-metric-col-val text-muted">${st.total_capacity}</span>
+                                <div class="st-cell">
+                                    <span class="st-cell-lbl"><i class="ph-bold ph-hard-drive"></i> Total</span>
+                                    <span class="st-cell-val">${st.total_capacity}</span>
+                                </div>
+                                <div class="st-cell">
+                                    <span class="st-cell-lbl"><i class="ph-bold ph-lightning text-accent"></i> Estado</span>
+                                    <span class="st-cell-val ${st.available_bikes > 0 ? 'text-success' : 'text-danger'}">${st.available_bikes > 0 ? 'Operativa' : 'Sin bicis'}</span>
                                 </div>
                             </div>
 
@@ -734,10 +727,9 @@ class AdvancedDashboard {
                                 <div class="dash-alert-item empty-alert">
                                     <div class="alert-info">
                                         <strong>${st.name}</strong>
-                                        <span class="alert-sub">Capacidad: ${st.total_capacity} | Huecos: ${st.available_slots}</span>
+                                        <span class="alert-sub">Capacidad: ${st.total_capacity}</span>
                                     </div>
                                     <div class="alert-actions">
-                                        <span class="badge-alert-tag tag-empty">0 Bicis</span>
                                         <button class="btn-goto-station" data-id="${st.station_id}">Ver ➔</button>
                                     </div>
                                 </div>
@@ -758,10 +750,9 @@ class AdvancedDashboard {
                                 <div class="dash-alert-item full-alert">
                                     <div class="alert-info">
                                         <strong>${st.name}</strong>
-                                        <span class="alert-sub">Bicis: ${st.available_bikes} / ${st.total_capacity} | Ocupación: 100%</span>
+                                        <span class="alert-sub">Capacidad: ${st.total_capacity}</span>
                                     </div>
                                     <div class="alert-actions">
-                                        <span class="badge-alert-tag tag-full">0 Huecos</span>
                                         <button class="btn-goto-station" data-id="${st.station_id}">Ver ➔</button>
                                     </div>
                                 </div>
@@ -790,12 +781,20 @@ class AdvancedDashboard {
         }
 
         // Filtro por precisión predictiva
-        if (this.tripFilter === 'exact') {
-            tripsList = tripsList.filter(t => (t.predictionDelta || 0) === 0);
-        } else if (this.tripFilter === 'minor') {
-            tripsList = tripsList.filter(t => Math.abs(t.predictionDelta || 0) === 1);
-        } else if (this.tripFilter === 'deviation') {
-            tripsList = tripsList.filter(t => Math.abs(t.predictionDelta || 0) > 1);
+        if (this.tripFilter === 'high') {
+            tripsList = tripsList.filter(t => {
+                const acc = typeof t.predictionAccuracyPct === 'number' 
+                    ? t.predictionAccuracyPct 
+                    : Math.max(70, Math.round(100 - (Math.abs(t.predictionDelta || 0) * 8)));
+                return acc >= 90;
+            });
+        } else if (this.tripFilter === 'dev') {
+            tripsList = tripsList.filter(t => {
+                const acc = typeof t.predictionAccuracyPct === 'number' 
+                    ? t.predictionAccuracyPct 
+                    : Math.max(70, Math.round(100 - (Math.abs(t.predictionDelta || 0) * 8)));
+                return acc < 90;
+            });
         }
 
         return `
@@ -837,8 +836,8 @@ class AdvancedDashboard {
 
                     <div class="dash-filter-chips">
                         <button class="dash-chip dash-trip-chip ${this.tripFilter === 'all' ? 'active' : ''}" data-filter="all">Todos (${performance.totalTrips})</button>
-                        <button class="dash-chip dash-trip-chip ${this.tripFilter === 'exact' ? 'active' : ''}" data-filter="exact">Exacta</button>
-                        <button class="dash-chip dash-trip-chip ${this.tripFilter === 'minor' ? 'active' : ''}" data-filter="minor">Desv. Mínima</button>
+                        <button class="dash-chip dash-trip-chip ${this.tripFilter === 'high' ? 'active' : ''}" data-filter="high">Alta Precisión (≥90%)</button>
+                        <button class="dash-chip dash-trip-chip ${this.tripFilter === 'dev' ? 'active' : ''}" data-filter="dev">Con Variación (&lt;90%)</button>
                     </div>
                 </div>
 

@@ -1,15 +1,17 @@
-# 🚲 Product Requirements Document (PRD) - BiciCoruña AI
+# 🚲 Product Requirements Document (PRD) — PedalIA
 
+**Producto:** PedalIA — Sistema Inteligente de Bicicletas Públicas de A Coruña  
 **Versión:** 2.0  
 **Fecha:** 22 de Agosto de 2026  
 **Estado:** Aprobado / En Producción  
 **Autor:** Lead Product Designer & Data Architect  
+**URL de Producción:** [https://angelvilarino.github.io/BiciCoru/](https://angelvilarino.github.io/BiciCoru/)
 
 ---
 
 ## 1. Visión y Propósito del Producto
 
-**BiciCoruña AI** es una plataforma de inteligencia operativa, movilidad urbana sostenible y predicción de disponibilidad en tiempo real para el sistema público de bicicletas de la ciudad de A Coruña (**BiciCoruña**).
+**PedalIA** es una plataforma de inteligencia operativa, movilidad urbana sostenible y predicción de disponibilidad en tiempo real para el sistema público de bicicletas de la ciudad de A Coruña (**BiciCoruña**).
 
 La plataforma evoluciona los tradicionales mapas estáticos de bicicletas convirtiéndose en una herramienta operativa integral capaz de:
 1. Predecir la disponibilidad de bicicletas y anclajes con **hasta 12 horas de antelación** mediante Machine Learning (XGBoost).

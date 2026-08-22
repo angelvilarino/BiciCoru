@@ -79,8 +79,8 @@ window.addEventListener('DOMContentLoaded', () => {
         const prompt = document.createElement('div');
         prompt.className = 'pwa-install-prompt';
         prompt.innerHTML = `
-            <h3>📱 Instalar BiciCoruña AI</h3>
-            <p>Acceso rápido en tiempo real a la red de bicis</p>
+            <h3>📱 Instalar PedalIA</h3>
+            <p>Acceso rápido en tiempo real con predicciones de disponibilidad</p>
             <div class="pwa-buttons">
                 <button class="pwa-install-btn">Instalar</button>
                 <button class="pwa-dismiss-btn">Ahora no</button>

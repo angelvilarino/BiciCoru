@@ -1,6 +1,6 @@
-# 🚲 BiciCoruña AI - Sistema Inteligente de Bicicletas Públicas
+# 🚲 PedalIA — Sistema Inteligente de Bicicletas Públicas de A Coruña
 
-Plataforma inteligente y en tiempo real para la monitorización, análisis predictivo y optimización del servicio de bicicletas públicas **BiciCoruña** (A Coruña, España). Integra modelos de Machine Learning para predecir la disponibilidad futura de bicicletas y huecos, cálculo de rutas multimodales con perfil altimétrico y un completo panel de control de la red.
+Plataforma inteligente y en tiempo real para la monitorización, análisis predictivo y optimización del servicio de bicicletas públicas **BiciCoruña** (A Coruña, España). Desarrollada bajo la marca **PedalIA**, integra modelos de Machine Learning para predecir la disponibilidad futura de bicicletas y huecos, cálculo de rutas multimodales con perfil altimétrico y un completo panel de control de la red.
 
 ---
 

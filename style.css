@@ -1034,21 +1034,21 @@ body.dark-mode .ai-action-btn.secondary {
    ========================================================================== */
 .route-panel {
     position: absolute;
-    top: 155px;
+    top: 100px;
     right: 20px;
     z-index: 2005;
     background: var(--bg-card);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     color: var(--text-main);
-    padding: 16px 20px;
-    border-radius: var(--radius-lg);
+    padding: 10px 14px;
+    border-radius: var(--radius-md, 14px);
     box-shadow: var(--shadow-lg);
     border: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    width: 320px;
+    gap: 6px;
+    width: 280px;
     animation: fadeInSlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -1070,39 +1070,45 @@ body.dark-mode .ai-action-btn.secondary {
     align-items: center;
     justify-content: space-between;
     width: 100%;
+    margin: 0;
+    padding: 0;
 }
 
 .route-icon {
-    font-size: 1.6rem;
-    margin-right: 8px;
+    font-size: 1.3rem;
+    margin-right: 6px;
 }
 
 .route-data {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    line-height: 1.2;
+    line-height: 1.1;
     flex: 1;
+    margin: 0;
+    padding: 0;
 }
 
 .route-time {
-    font-size: 1.2rem;
+    font-size: 1.05rem;
     font-weight: 800;
     color: var(--text-main);
+    line-height: 1.1;
 }
 
 .route-dist {
-    font-size: 0.85rem;
+    font-size: 0.78rem;
     font-weight: 600;
     color: var(--text-sub);
+    line-height: 1.1;
 }
 
 .close-route-btn {
     background: rgba(0, 0, 0, 0.05);
     border: 1px solid var(--border-color);
     color: var(--text-main);
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
     cursor: pointer;
     display: inline-flex;
@@ -1120,23 +1126,25 @@ body.dark-mode .ai-action-btn.secondary {
     width: 100%;
     background: var(--bg-card-subtle);
     border-radius: var(--radius-sm);
-    padding: 8px 10px;
+    padding: 6px 8px;
+    margin: 2px 0 0 0;
     border: 1px solid var(--border-color);
 }
 
 .elevation-label {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 600;
     color: var(--text-sub);
-    margin-bottom: 6px;
+    margin-bottom: 3px;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
 }
 
 .elevation-box canvas {
     width: 100% !important;
-    height: 80px !important;
+    height: 55px !important;
+    max-height: 55px !important;
     display: block;
 }
 
@@ -1607,7 +1615,7 @@ body.dark-mode .close-btn {
         right: auto;
         width: auto;
         max-width: calc(100vw - 120px);
-        padding: 6px 12px;
+        padding: 6px 10px;
         background: var(--bg-card);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
@@ -1615,56 +1623,81 @@ body.dark-mode .close-btn {
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
         border: 1px solid var(--border-color);
         z-index: 2200;
-        gap: 6px;
+        gap: 3px;
+        margin: 0;
     }
 
     .route-header {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
+        margin: 0;
+        padding: 0;
+    }
+
+    .route-icon {
+        margin: 0;
+        padding: 0;
+        line-height: 1;
     }
 
     .route-icon i {
         font-size: 1.15rem !important;
+        line-height: 1;
     }
 
     .route-data {
+        display: flex;
         flex-direction: row;
-        gap: 6px;
+        gap: 5px;
         align-items: baseline;
+        margin: 0;
+        padding: 0;
+        line-height: 1;
     }
 
     .route-time {
         font-size: 0.95rem;
         font-weight: 800;
+        line-height: 1;
     }
 
     .route-dist {
-        font-size: 0.75rem;
+        font-size: 0.72rem;
         font-weight: 600;
+        line-height: 1;
     }
 
     .close-route-btn {
-        width: 22px;
-        height: 22px;
-        font-size: 0.75rem;
+        width: 20px;
+        height: 20px;
+        font-size: 0.7rem;
+        margin: 0;
+        padding: 0;
     }
 
     .elevation-box {
-        margin-top: 4px;
-        padding-top: 4px;
+        margin: 2px 0 0 0;
+        padding: 3px 0 0 0;
+        border: none;
         border-top: 1px solid var(--border-color);
+        background: transparent;
+        width: 100%;
     }
 
     .elevation-label {
-        font-size: 0.65rem;
+        font-size: 0.62rem;
         font-weight: 700;
         margin-bottom: 2px;
+        padding: 0;
+        color: var(--text-sub);
     }
 
     #elevationChart {
-        max-height: 50px !important;
-        height: 50px !important;
+        max-height: 44px !important;
+        height: 44px !important;
+        width: 100% !important;
+        display: block;
     }
     
     .map-legend {

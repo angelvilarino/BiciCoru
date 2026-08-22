@@ -1,8 +1,9 @@
-# 🏛️ Technical Architecture Document - BiciCoruña AI
+# 🏛️ Technical Architecture Document — PedalIA
 
 **Versión:** 2.0  
 **Fecha:** 22 de Agosto de 2026  
-**Sistema:** BiciCoruña Predictive & Operations Platform  
+**Sistema:** PedalIA — Predictive & Operations Platform (BiciCoruña)  
+**URL de Producción:** [https://angelvilarino.github.io/BiciCoru/](https://angelvilarino.github.io/BiciCoru/)
 
 ---
 

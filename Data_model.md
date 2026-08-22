@@ -1,7 +1,8 @@
-# 🗄️ Data Model & Schema Specifications - BiciCoruña AI
+# 🗄️ Data Model & Schema Specifications — PedalIA
 
 **Versión:** 2.0  
 **Fecha:** 22 de Agosto de 2026  
+**Sistema:** PedalIA — Predictive & Operations Platform  
 **Motor:** PostgreSQL (Supabase Cloud) & Web LocalStorage  
 
 ---
