@@ -81,7 +81,8 @@ function toggleFavorite(event) {
     
     localStorage.setItem('favStations', JSON.stringify(favs));
     updateFavoriteBtn(id); 
-    updateStationsList(); 
+    updateStationsList();
+    if(typeof updateFavBadge === 'function') updateFavBadge();
     if(currentFilter === 'fav') updateMap(); 
 }
 
@@ -201,7 +202,7 @@ async function init() {
         return; 
     }
     
-    console.log("🚀 BiciAI v23.0 (FIXED)");
+    console.log("🚴 PedalIA v1.0 — Sistema Inteligente de Bicicletas de A Coruña");
     
     initMap(); 
     setupUI(); 
@@ -298,6 +299,7 @@ function setupUI() {
         if(window.innerWidth <= 768) {
             setupDraggableSheet('main-panel', 'main-drag-zone', 140);
             setupDraggableSheet('station-card', 'card-drag-zone', 250);
+            setupBottomNav();
         }
     } catch(e) { 
         console.error("UI Setup Error:", e); 
@@ -832,66 +834,151 @@ function forceLocate() {
     }
 }
 
+// BOTTOM NAVIGATION BAR
+function setupBottomNav() {
+    const items = document.querySelectorAll('.bnav-item');
+    if (!items.length) return;
+
+    const setActive = (tab) => {
+        items.forEach(i => {
+            const isActive = i.dataset.tab === tab;
+            i.classList.toggle('active', isActive);
+            i.setAttribute('aria-selected', String(isActive));
+        });
+    };
+
+    document.getElementById('bnav-map')?.addEventListener('click', () => {
+        setActive('map');
+        // Cerrar la station-card si está abierta y volver al panel principal
+        const card = document.getElementById('station-card');
+        if (card && !card.classList.contains('hidden')) {
+            clearUI(true);
+        }
+    });
+
+    document.getElementById('bnav-favs')?.addEventListener('click', () => {
+        setActive('favs');
+        // Activar filtro de favoritas
+        currentFilter = 'fav';
+        document.querySelectorAll('.filter-chip').forEach(c => {
+            c.classList.toggle('active', c.dataset.filter === 'fav');
+        });
+        updateStationsList();
+    });
+
+    document.getElementById('bnav-alerts')?.addEventListener('click', () => {
+        setActive('alerts');
+        // Abrir modal de reporte si hay estación activa, si no mostrar toast
+        if (currentStation) {
+            openReportModal();
+        } else {
+            showToast('📍 Selecciona una estación primero para reportar una incidencia');
+            setActive('map'); // Volver al tab mapa
+        }
+    });
+
+    document.getElementById('bnav-dashboard')?.addEventListener('click', () => {
+        setActive('dashboard');
+        // Abrir el dashboard de red
+        document.getElementById('dashboard-modal')?.classList.remove('hidden');
+        if (typeof loadDashboard === 'function') loadDashboard();
+    });
+
+    // Actualizar badge de favoritas al iniciar y cuando cambien
+    updateFavBadge();
+}
+
+function updateFavBadge() {
+    const badge = document.getElementById('bnav-fav-count');
+    if (!badge) return;
+    const count = getFavorites().length;
+    if (count > 0) {
+        badge.textContent = count > 9 ? '9+' : String(count);
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
+}
+
+
 function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
     const sheet = document.getElementById(sheetId);
     const handle = document.getElementById(dragZoneId);
-    
-    if(!sheet || !handle) return;
-    
+
+    if (!sheet || !handle) return;
+
     let startY = 0;
+    let startX = 0;
     let initialY = 0;
     let isDragging = false;
-    
+    let intentLocked = false;   // true = se determinó la dirección del gesto
+    let isSheetDrag = false;    // true = el gesto es para mover el sheet (no scroll interno)
+
     const getTranslateY = (el) => {
         try {
             const st = window.getComputedStyle(el);
             const tr = st.transform || st.webkitTransform;
             if (!tr || tr === 'none') return 0;
-            if (window.DOMMatrix) {
-                const mat = new DOMMatrix(tr);
-                return mat.m42 || mat.f || 0;
-            }
-            if (window.WebKitCSSMatrix) {
-                const mat = new WebKitCSSMatrix(tr);
-                return mat.m42 || 0;
-            }
-        } catch(e) {
-            console.warn('Matrix error:', e);
-        }
+            if (window.DOMMatrix) { return new DOMMatrix(tr).m42 || 0; }
+            if (window.WebKitCSSMatrix) { return new WebKitCSSMatrix(tr).m42 || 0; }
+        } catch (e) { console.warn('Matrix error:', e); }
         return 0;
     };
-    
+
+    // ── touchstart: solo en el handle, siempre pasivo (no bloquea nada)
     handle.addEventListener('touchstart', e => {
         isDragging = true;
+        intentLocked = false;
+        isSheetDrag = false;
         startY = e.touches[0].clientY;
-        sheet.style.transition = 'none';
+        startX = e.touches[0].clientX;
         initialY = getTranslateY(sheet);
-    }, {passive: false});
-    
-    window.addEventListener('touchmove', e => {
-        if(!isDragging) return;
-        
-        const currentY = e.touches[0].clientY;
-        const deltaY = currentY - startY;
-        const newY = initialY + deltaY;
-        
-        if(newY >= 0) {
+        sheet.style.transition = 'none';
+    }, { passive: true });
+
+    // ── touchmove: solo en el handle, determina intención antes de preventDefault
+    handle.addEventListener('touchmove', e => {
+        if (!isDragging) return;
+
+        const dy = e.touches[0].clientY - startY;
+        const dx = e.touches[0].clientX - startX;
+
+        // Determinar la intención solo una vez por gesto
+        if (!intentLocked && (Math.abs(dy) > 4 || Math.abs(dx) > 4)) {
+            isSheetDrag = Math.abs(dy) > Math.abs(dx); // vertical → mover sheet
+            intentLocked = true;
+        }
+
+        if (!isSheetDrag) return; // gesto horizontal → dejar pasar sin preventDefault
+
+        // Movimiento vertical → mover el sheet
+        if (e.cancelable) e.preventDefault();
+        const newY = initialY + dy;
+        if (newY >= 0) {
             sheet.style.transform = `translateY(${newY}px)`;
         }
-        
-        if(e.cancelable) e.preventDefault();
-    }, {passive: false});
-    
-    window.addEventListener('touchend', e => {
-        if(!isDragging) return;
-        
+    }, { passive: false }); // passive:false necesario solo aquí para poder llamar preventDefault
+
+    // ── touchend: snap a posición abierta o cerrada
+    handle.addEventListener('touchend', () => {
+        if (!isDragging) return;
         isDragging = false;
-        sheet.style.transition = 'transform 0.3s ease';
-        
+        intentLocked = false;
+
+        sheet.style.transition = 'transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1)';
+
         const currentY = getTranslateY(sheet);
         const closeThreshold = window.innerHeight - visibleHeight;
-        
+
+        // Snap: si está en la mitad superior → abrir, si está en inferior → cerrar (peek)
         sheet.style.transform = `translateY(${currentY < closeThreshold / 2 ? 0 : closeThreshold}px)`;
+    });
+
+    // ── touchcancel: limpiar estado sin animar
+    handle.addEventListener('touchcancel', () => {
+        isDragging = false;
+        intentLocked = false;
+        sheet.style.transition = 'transform 0.2s ease';
     });
 }
 
@@ -958,10 +1045,31 @@ async function loadRealCharts(stationId) {
                 responsive: true,
                 maintainAspectRatio: false,
                 interaction: {mode: 'index', intersect: false},
-                plugins: {legend: {display: false}},
+                plugins: {
+                    legend: {display: false},
+                    tooltip: {
+                        titleFont: {size: 12, weight: '600'},
+                        bodyFont: {size: 12},
+                        padding: 8,
+                        boxPadding: 4,
+                        cornerRadius: 8
+                    }
+                },
                 scales: {
-                    x: {ticks: {maxTicksLimit: 6, maxRotation: 0}},
-                    y: {beginAtZero: true}
+                    x: {
+                        ticks: {
+                            maxTicksLimit: 6,
+                            maxRotation: 0,
+                            font: {size: 11}
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0,
+                            font: {size: 11}
+                        }
+                    }
                 }
             }
         });
@@ -987,25 +1095,35 @@ async function loadRealCharts(stationId) {
         
         let predLabels = [];
         let predData = [];
-        
-        const validPreds = (predictions || []).filter(d => new Date(d.prediction_date).getTime() >= (now.getTime() - 10 * 60 * 1000));
-        
-        if(validPreds && validPreds.length > 0) {
-            predLabels = validPreds.map(d => 
+
+        const validPreds = (predictions || []).filter(d =>
+            new Date(d.prediction_date).getTime() >= (now.getTime() - 10 * 60 * 1000)
+        );
+
+        if (validPreds && validPreds.length > 0) {
+            predLabels = validPreds.map(d =>
                 new Date(d.prediction_date).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
             );
             predData = validPreds.map(d => Math.max(0, Math.round(d.predicted_bikes)));
         } else {
-            // Fallback predictivo progresivo
+            // Fallback: generar 12 horas redondeadas
+            const baseHour = new Date(now);
+            baseHour.setMinutes(0, 0, 0);
             const lastValue = currentStation?.available_bikes || 5;
-            for(let i = 1; i <= 6; i++) {
-                const futureTime = new Date(now.getTime() + i * 3600 * 1000);
-                predLabels.push(futureTime.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
-                let value = lastValue + Math.floor(Math.random() * 3) - 1;
-                if(value < 0) value = 0;
-                predData.push(value);
+            for (let i = 1; i <= 12; i++) {
+                const ft = new Date(baseHour.getTime() + i * 3600 * 1000);
+                predLabels.push(ft.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
+                let v = lastValue + Math.floor(Math.random() * 3) - 1;
+                predData.push(Math.max(0, v));
             }
         }
+
+        // Colores semafóricos por barra
+        const barColors = predData.map(v =>
+            v >= 5 ? 'rgba(16, 185, 129, 0.85)'
+            : v >= 1 ? 'rgba(245, 158, 11, 0.85)'
+            : 'rgba(239, 68, 68, 0.85)'
+        );
 
         trendChart = new Chart(trendCanvas.getContext('2d'), {
             type: 'bar',
@@ -1014,33 +1132,55 @@ async function loadRealCharts(stationId) {
                 datasets: [{
                     label: 'Bicis disponibles',
                     data: predData,
-                    backgroundColor: '#8b5cf6',
-                    borderRadius: 4
+                    backgroundColor: barColors,
+                    borderRadius: 4,
+                    categoryPercentage: 0.8,
+                    barPercentage: 0.85
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {mode: 'index', intersect: false},
                 plugins: {
                     legend: {display: false},
                     tooltip: {
+                        titleFont: {size: 12, weight: '600'},
+                        bodyFont: {size: 12},
+                        padding: 8,
+                        boxPadding: 4,
+                        cornerRadius: 8,
                         callbacks: {
                             title: function(context) {
                                 return 'Hora: ' + context[0].label;
                             },
                             label: function(context) {
-                                return 'Bicis disponibles: ' + context.parsed.y;
+                                const v = context.parsed.y;
+                                if (v === null || v === undefined) return 'Sin predicción';
+                                return 'Bicis disponibles: ' + v;
                             }
                         }
                     }
                 },
                 scales: {
-                    x: {ticks: {maxTicksLimit: 6, maxRotation: 0}},
-                    y: {beginAtZero: true}
+                    x: {
+                        ticks: {
+                            maxTicksLimit: 6,
+                            maxRotation: 0,
+                            font: {size: 11}
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0,
+                            font: {size: 11}
+                        }
+                    }
                 }
             }
         });
-        
+
         trendCanvas.parentElement.classList.remove('loading');
     } catch(e) {
         console.error('Prediction chart error:', e);

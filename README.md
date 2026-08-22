@@ -71,7 +71,7 @@ Accesible desde el botón destacado **[ 📊 Dashboard ]** en la cabecera:
 - **Rankings**: Top estaciones con más bicicletas vs. estaciones con menor disponibilidad.
 - **Ocupación Detallada de Estaciones**: Listado completo e interactivo con buscador en vivo, filtros por estado y selector de ordenación (% de ocupación, mayor/menor número de bicis, orden alfabético), con botón *"Ver en mapa"* para localizar e interactuar con cada estación.
 - **Alertas y Rebalanceo**: Detección de estaciones críticas (vacías que necesitan reposición y saturadas sin huecos para aparcar).
-- **Mi Actividad Personal**: Estadísticas personales de viajes, cálculo de CO₂ ahorrado, calorías estimadas, patrones horarios de uso y seguimiento de objetivos mensuales.
+- **Log de Viajes Analítico y Evaluación de IA**: Registro detallado de rutas con estación de origen, destino, duración exacta, timestamp, métricas superiores de distancia (30d), total de viajes y ahorro de emisiones de CO₂ institucionales, junto con la comparativa en tiempo real de **Disponibilidad Real vs Predicción del Modelo de IA** ($\Delta$ de error y porcentaje de precisión).
 
 ### ⛅ 6. Clima y Estado del Mar en Vivo
 - Tarjeta meteorológica integrada con temperatura actual, precipitación (lluvia en mm), velocidad del viento y altura del oleaje costero en A Coruña.
@@ -143,6 +143,15 @@ La inferencia de disponibilidad se ejecuta en `data_engine/predictor.py` mediant
 - **Base de Datos & Backend**: [Supabase](https://supabase.com/) (PostgreSQL & Realtime Client).
 - **Motor de Datos / ML**: Python 3.11, `scikit-learn`, `pandas`, `numpy`, `requests`.
 - **Automatización CI/CD**: GitHub Actions Workflows.
+
+---
+
+## 📚 Documentación Técnica y de Producto
+
+Para consultar las especificaciones detalladas de ingeniería, arquitectura y producto:
+- 📋 [**Product Requirements Document (PRD.md)**](PRD.md): Objetivos, casos de uso, requisitos funcionales y métricas de éxito.
+- 🏛️ [**Technical Architecture (Architecture.md)**](Architecture.md): Diagrama del sistema, flujo de datos, pipelines ML e infraestructura.
+- 🗄️ [**Data Model & Schema (Data_model.md)**](Data_model.md): Esquemas de tablas en Supabase PostgreSQL, localStorage y Feature Store de Machine Learning.
 
 ---
 

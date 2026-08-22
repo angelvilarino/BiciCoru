@@ -1,12 +1,15 @@
 {
-  "name": "BiciCoruña AI",
-  "short_name": "BiciAI",
+  "name": "PedalIA — Bicicletas de A Coruña",
+  "short_name": "PedalIA",
+  "description": "Sistema inteligente de bicicletas públicas de A Coruña con predicciones de disponibilidad mediante IA",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#667eea",
+  "orientation": "portrait-primary",
+  "background_color": "#0f172a",
+  "theme_color": "#6366f1",
+  "lang": "es",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }

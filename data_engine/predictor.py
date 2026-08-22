@@ -35,7 +35,7 @@ def fetch_recent_history():
     r = sb.table('snapshots').select('station_id, timestamp, available_bikes').gte('timestamp', start_date).execute()
     df = pd.DataFrame(r.data)
     if df.empty: return df
-    df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True, format='mixed').dt.tz_convert(None).dt.floor('h')
+    df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True, format='mixed').dt.floor('h')
     return df.sort_values('timestamp').drop_duplicates(subset=['station_id', 'timestamp'], keep='last')
 
 def fetch_weather_forecast():
@@ -46,7 +46,7 @@ def fetch_weather_forecast():
         data = []
         for i in resp.json()['list']:
             data.append({
-                'timestamp': pd.to_datetime(i['dt'], unit='s'),
+                'timestamp': pd.to_datetime(i['dt'], unit='s', utc=True),
                 'temp': i['main']['temp'],
                 'wind': i['wind']['speed'],
                 'rain': i.get('rain', {}).get('3h', 0) / 3

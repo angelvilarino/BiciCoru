@@ -34,7 +34,40 @@
     --accent-gradient-hover: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #c026d3 100%);
     --primary-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
     
-    /* Estados de Disponibilidad */
+    /* ⚡ TOKENS DE GRADO OPERATIVO & ALTO CONTRASTE */
+    --op-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --op-bg-surface: #ffffff;
+    --op-bg-surface-alt: #f8fafc;
+    --op-bg-surface-hover: #f1f5f9;
+    --op-border-subtle: rgba(148, 163, 184, 0.22);
+    --op-border-strong: rgba(100, 116, 139, 0.4);
+    
+    /* Estados Críticos de Alto Contraste */
+    --status-critical-empty: #ef4444;
+    --status-critical-empty-bg: rgba(239, 68, 68, 0.12);
+    --status-critical-empty-border: #f87171;
+    --status-critical-empty-glow: rgba(239, 68, 68, 0.35);
+
+    --status-critical-full: #3b82f6;
+    --status-critical-full-bg: rgba(59, 130, 246, 0.12);
+    --status-critical-full-border: #60a5fa;
+    --status-critical-full-glow: rgba(59, 130, 246, 0.35);
+
+    --status-optimal: #10b981;
+    --status-optimal-bg: rgba(16, 185, 129, 0.12);
+    --status-optimal-border: #34d399;
+
+    --status-warning: #f59e0b;
+    --status-warning-bg: rgba(245, 158, 11, 0.12);
+    --status-warning-border: #fbbf24;
+
+    /* Tokens Analíticos y Predictivos IA */
+    --ai-badge-bg: rgba(99, 102, 241, 0.14);
+    --ai-badge-color: #4f46e5;
+    --ai-match-color: #059669;
+    --ai-delta-warn: #d97706;
+
+    /* Estados de Disponibilidad Clásicos */
     --status-green: #10b981;
     --status-green-bg: rgba(16, 185, 129, 0.12);
     --status-green-glow: rgba(16, 185, 129, 0.35);
@@ -55,12 +88,41 @@
 }
 
 body.dark-mode {
-    --bg-card: rgba(15, 23, 42, 0.92);
+    --bg-card: rgba(15, 23, 42, 0.94);
     --bg-card-solid: #0f172a;
-    --bg-card-subtle: rgba(30, 41, 59, 0.9);
+    --bg-card-subtle: rgba(30, 41, 59, 0.95);
     --bg-input: #1e293b;
-    --bg-hover: rgba(30, 41, 59, 0.8);
+    --bg-hover: rgba(30, 41, 59, 0.85);
     
+    --op-bg-surface: #1e293b;
+    --op-bg-surface-alt: #0f172a;
+    --op-bg-surface-hover: #334155;
+    --op-border-subtle: rgba(255, 255, 255, 0.12);
+    --op-border-strong: rgba(255, 255, 255, 0.25);
+
+    --status-critical-empty: #f87171;
+    --status-critical-empty-bg: rgba(239, 68, 68, 0.22);
+    --status-critical-empty-border: #ef4444;
+    --status-critical-empty-glow: rgba(239, 68, 68, 0.5);
+
+    --status-critical-full: #60a5fa;
+    --status-critical-full-bg: rgba(59, 130, 246, 0.22);
+    --status-critical-full-border: #3b82f6;
+    --status-critical-full-glow: rgba(59, 130, 246, 0.5);
+
+    --status-optimal: #34d399;
+    --status-optimal-bg: rgba(16, 185, 129, 0.22);
+    --status-optimal-border: #10b981;
+
+    --status-warning: #fbbf24;
+    --status-warning-bg: rgba(245, 158, 11, 0.22);
+    --status-warning-border: #f59e0b;
+
+    --ai-badge-bg: rgba(129, 140, 248, 0.2);
+    --ai-badge-color: #a5b4fc;
+    --ai-match-color: #34d399;
+    --ai-delta-warn: #fbbf24;
+
     --text-main: #f8fafc;
     --text-sub: #94a3b8;
     --text-muted: #64748b;
@@ -249,16 +311,42 @@ body.dark-mode #map {
     margin-bottom: 12px;
 }
 
+/* Logotipo PedalIA */
 .brand h1 {
-    font-size: 1.25rem;
+    font-size: 1.4rem;
     font-weight: 800;
-    letter-spacing: -0.5px;
+    letter-spacing: -1px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    line-height: 1;
+}
+
+.brand-logo-img {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.brand-pedal {
     background: var(--accent-gradient);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    background-clip: text;
+    font-weight: 800;
+}
+
+.brand-ia {
+    font-weight: 900;
+    font-style: italic;
+    color: var(--accent-light);
+    -webkit-text-fill-color: var(--accent-light);
+    letter-spacing: -2px;
+    font-size: 1.6rem;
+    line-height: 0.9;
 }
 
 .header-actions {
@@ -629,6 +717,7 @@ body.dark-mode .list-badge {
 
 .drag-zone {
     display: none;
+    touch-action: none; /* El handle captura gestos sin interferir con el mapa */
 }
 
 .card-content {
@@ -638,6 +727,8 @@ body.dark-mode .list-badge {
     box-sizing: border-box;
     scrollbar-width: thin;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;           /* Scroll nativo sin bloquear el mapa */
+    overscroll-behavior: contain;  /* Evita que el scroll se propague al mapa */
 }
 
 .card-content::-webkit-scrollbar {
@@ -914,6 +1005,10 @@ body.dark-mode .ai-action-btn.secondary {
     border-radius: var(--radius-md);
     padding: 14px;
     transition: all 0.2s ease;
+    overflow: hidden;   /* Impide que el canvas se salga del borde */
+    min-width: 0;       /* Crítico en flex: evita overflow de hijos */
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .chart-box h4 {
@@ -929,7 +1024,9 @@ body.dark-mode .ai-action-btn.secondary {
 .chart-box canvas {
     height: 140px !important;
     width: 100% !important;
+    max-width: 100% !important;
     display: block;
+    box-sizing: border-box;
 }
 
 /* ==========================================================================
@@ -1723,4 +1820,138 @@ body.dark-mode .progress-bar { background: rgba(255, 255, 255, 0.1); }
     border-top-color: var(--accent-color);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
+}
+
+/* ==========================================================================
+   📊 GRÁFICO PRONÓSTICO
+   ========================================================================== */
+#trendChart {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    display: block;
+}
+
+/* ==========================================================================
+   🧭 BOTTOM NAVIGATION BAR (Solo móvil)
+   ========================================================================== */
+:root {
+    --bnav-height: 62px;
+}
+
+.bottom-nav {
+    display: none; /* Oculta en desktop */
+}
+
+@media (max-width: 768px) {
+    .bottom-nav {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        align-items: stretch;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: var(--bnav-height);
+        background: var(--bg-card);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-top: 1px solid var(--border-color);
+        box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.1);
+        z-index: 3000;
+        /* Soporte notch iPhone */
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* Elevar el bottom sheet para que no quede tapado por la nav */
+    .bottom-sheet {
+        padding-bottom: calc(var(--bnav-height) + env(safe-area-inset-bottom, 0px)) !important;
+    }
+
+    /* Elevar la leyenda del mapa */
+    .map-legend {
+        bottom: calc(var(--bnav-height) + 16px) !important;
+    }
+}
+
+.bnav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 8px 4px;
+    position: relative;
+    transition: color 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+    min-width: 0;
+}
+
+.bnav-icon {
+    font-size: 1.45rem;
+    line-height: 1;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.bnav-label {
+    font-size: 0.63rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    transition: color 0.2s ease;
+}
+
+/* Estado activo */
+.bnav-item.active {
+    color: var(--accent-color);
+}
+
+.bnav-item.active .bnav-icon {
+    transform: translateY(-2px) scale(1.12);
+}
+
+/* Indicador de pestaña activa (línea superior) */
+.bnav-item.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 25%;
+    right: 25%;
+    height: 3px;
+    background: var(--accent-gradient);
+    border-radius: 0 0 4px 4px;
+    animation: fadeIn 0.2s ease-out;
+}
+
+/* Hover para puntero */
+.bnav-item:not(.active):hover {
+    color: var(--text-sub);
+}
+
+/* Badge de notificación */
+.bnav-badge {
+    position: absolute;
+    top: 6px;
+    right: calc(50% - 18px);
+    min-width: 18px;
+    height: 18px;
+    background: var(--status-red);
+    color: white;
+    border-radius: 9px;
+    font-size: 0.62rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    border: 2px solid var(--bg-card);
+    animation: scaleIn 0.2s ease-out;
 }
