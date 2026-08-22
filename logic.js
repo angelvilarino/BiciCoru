@@ -298,8 +298,7 @@ function setupUI() {
         // Setup draggable sheets para móvil
         if(window.innerWidth <= 768) {
             setupDraggableSheet('main-panel', 'main-drag-zone', 140);
-            setupDraggableSheet('station-card', 'card-drag-zone', 250);
-            setupBottomNav();
+            setupDraggableSheet('station-card', 'card-drag-zone', 160);
         }
     } catch(e) { 
         console.error("UI Setup Error:", e); 
@@ -651,6 +650,20 @@ function drawRoute(dest, mode = 'walk') {
     document.getElementById('route-panel')?.classList.remove('hidden');
     document.getElementById('elevation-box')?.classList.add('hidden');
 
+    // En móvil, minimizar la tarjeta de estación hacia abajo para dejar ver el mapa y la ruta
+    if(window.innerWidth <= 768) {
+        const stationCard = document.getElementById('station-card');
+        if(stationCard) {
+            stationCard.classList.add('minimized');
+            stationCard.style.transform = 'translateY(calc(100% - 60px))';
+        }
+        const mainPanel = document.getElementById('main-panel');
+        if(mainPanel) {
+            mainPanel.classList.add('minimized');
+            mainPanel.style.transform = 'translateY(calc(100% - 60px))';
+        }
+    }
+
     const serviceUrl = mode === 'walk' ? 
         'https://routing.openstreetmap.de/routed-foot/route/v1' : 
         'https://routing.openstreetmap.de/routed-bike/route/v1';
@@ -698,106 +711,82 @@ function drawRoute(dest, mode = 'walk') {
     });
     
     routingControl.on('routingerror', e => {
-        console.error('Routing error:', e);
-        showToast('❌ No se pudo calcular ruta');
+        console.error("Routing error:", e);
+        showToast("⚠️ No se pudo calcular la ruta");
     });
 }
 
-async function calculateElevationProfile(coords) {
-    const box = document.getElementById('elevation-box');
-    if(!box) return;
+function calculateElevationProfile(coords) {
+    if(!coords || coords.length === 0) return;
     
-    const step = Math.max(1, Math.ceil(coords.length / 80));
-    const sample = coords.filter((_, i) => i % step === 0);
+    const sampleRate = Math.max(1, Math.floor(coords.length / 25));
+    const sampled = coords.filter((_, i) => i % sampleRate === 0);
     
-    const lats = sample.map(x => x.lat.toFixed(4)).join(',');
-    const lngs = sample.map(x => x.lng.toFixed(4)).join(',');
+    const latList = sampled.map(c => c.lat).join(',');
+    const lngList = sampled.map(c => c.lng).join(',');
     
-    try {
-        const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lngs}`);
-        const data = await res.json();
-        
-        box.classList.remove('hidden');
-        drawElevationChart(data.elevation || sample.map((_, i) => 20 + Math.sin(i/5) * 10));
-    } catch(e) { 
-        console.error('Elevation error:', e);
-        box.classList.remove('hidden'); 
-        drawElevationChart(sample.map((_, i) => 20 + Math.sin(i/5) * 10)); 
-    }
+    const url = `https://api.open-meteo.com/v1/elevation?latitude=${latList}&longitude=${lngList}`;
+    
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            if(data && data.elevation) {
+                renderElevationChart(data.elevation);
+            }
+        })
+        .catch(err => {
+            console.error("Elevation API error:", err);
+        });
 }
 
-function drawElevationChart(elevation) {
-    const ctx = document.getElementById('elevationChart');
-    if(!ctx) return;
+function renderElevationChart(elevations) {
+    const box = document.getElementById('elevation-box');
+    const canvas = document.getElementById('elevationChart');
+    if(!box || !canvas) return;
     
-    const context = ctx.getContext('2d');
+    box.classList.remove('hidden');
     
-    if(elevationChart) {
-        elevationChart.destroy();
-        elevationChart = null;
+    if(elevationChartInstance) {
+        elevationChartInstance.destroy();
     }
     
-    if(!elevationMarker) {
-        elevationMarker = L.circleMarker([0, 0], {
-            radius: 8,
-            fillColor: '#e74c3c',
-            color: '#fff',
-            weight: 3,
-            fillOpacity: 1
-        });
-    }
+    const ctx = canvas.getContext('2d');
+    const isDark = document.body.classList.contains('dark-mode');
     
-    elevationChart = new Chart(context, {
-        type: 'line', 
+    elevationChartInstance = new Chart(ctx, {
+        type: 'line',
         data: {
-            labels: elevation.map((_, i) => i),
+            labels: elevations.map((_, i) => `${((i / (elevations.length - 1)) * currentRouteKm).toFixed(1)}km`),
             datasets: [{
-                label: 'Altitud',
-                data: elevation,
-                borderColor: '#667eea',
-                backgroundColor: 'rgba(102,126,234,0.2)',
+                data: elevations,
+                borderColor: '#6366f1',
+                backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                borderWidth: 2,
                 fill: true,
-                pointRadius: 0,
-                tension: 0.4
+                tension: 0.4,
+                pointRadius: 0
             }]
         },
         options: {
-            responsive: true, 
-            maintainAspectRatio: false, 
-            interaction: {mode: 'index', intersect: false},
+            responsive: true,
+            maintainAspectRatio: false,
             plugins: {
-                legend: {display: false},
+                legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        title: function(context) {
-                            const i = context[0].dataIndex;
-                            const total = elevation.length;
-                            if (currentRouteKm && total > 1) {
-                                const dist = ((i / (total - 1)) * currentRouteKm).toFixed(2);
-                                return `Distancia: ${dist} km`;
-                            }
-                            return `Punto del trayecto: ${i + 1} de ${total}`;
-                        },
-                        label: function(context) {
-                            return `Altitud: ${Math.round(context.parsed.y)} metros`;
-                        }
+                        label: ctx => `Alt: ${ctx.raw} m`
                     }
                 }
-            }, 
-            scales: {
-                x: {display: false},
-                y: {display: false}
             },
-            onHover: (event, elements) => {
-                if(elements.length > 0 && currentRouteCoords.length > 0) {
-                    const idx = Math.floor((elements[0].index / elevation.length) * currentRouteCoords.length);
-                    if(currentRouteCoords[idx]) {
-                        elevationMarker.setLatLng(currentRouteCoords[idx]).addTo(map);
-                    }
-                } else {
-                    if(elevationMarker && map.hasLayer(elevationMarker)) {
-                        map.removeLayer(elevationMarker);
-                    }
+            scales: {
+                x: { display: false },
+                y: { 
+                    display: true,
+                    ticks: {
+                        color: isDark ? '#94a3b8' : '#64748b',
+                        font: { size: 9 }
+                    },
+                    grid: { display: false }
                 }
             }
         }
@@ -822,7 +811,6 @@ function setupTheme() {
         localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
     });
     
-    // Restaurar tema guardado
     if(localStorage.getItem('darkMode') === 'true') {
         document.body.classList.add('dark-mode');
     }
@@ -832,7 +820,6 @@ function setupSearch() {
     const searchInput = document.getElementById('search-input');
     if(!searchInput) return;
     
-    // Usar debounce para optimizar búsqueda
     const debouncedSearch = PerfUtils.debounce((value) => {
         window.searchTerm = value.toLowerCase();
         updateStationsList();
@@ -848,73 +835,6 @@ function forceLocate() {
         map.locate({setView: false});
     }
 }
-
-// BOTTOM NAVIGATION BAR
-function setupBottomNav() {
-    const items = document.querySelectorAll('.bnav-item');
-    if (!items.length) return;
-
-    const setActive = (tab) => {
-        items.forEach(i => {
-            const isActive = i.dataset.tab === tab;
-            i.classList.toggle('active', isActive);
-            i.setAttribute('aria-selected', String(isActive));
-        });
-    };
-
-    document.getElementById('bnav-map')?.addEventListener('click', () => {
-        setActive('map');
-        // Cerrar la station-card si está abierta y volver al panel principal
-        const card = document.getElementById('station-card');
-        if (card && !card.classList.contains('hidden')) {
-            clearUI(true);
-        }
-    });
-
-    document.getElementById('bnav-favs')?.addEventListener('click', () => {
-        setActive('favs');
-        // Activar filtro de favoritas
-        currentFilter = 'fav';
-        document.querySelectorAll('.filter-chip').forEach(c => {
-            c.classList.toggle('active', c.dataset.filter === 'fav');
-        });
-        updateStationsList();
-    });
-
-    document.getElementById('bnav-alerts')?.addEventListener('click', () => {
-        setActive('alerts');
-        // Abrir modal de reporte si hay estación activa, si no mostrar toast
-        if (currentStation) {
-            openReportModal();
-        } else {
-            showToast('📍 Selecciona una estación primero para reportar una incidencia');
-            setActive('map'); // Volver al tab mapa
-        }
-    });
-
-    document.getElementById('bnav-dashboard')?.addEventListener('click', () => {
-        setActive('dashboard');
-        // Abrir el dashboard de red
-        document.getElementById('dashboard-modal')?.classList.remove('hidden');
-        if (typeof loadDashboard === 'function') loadDashboard();
-    });
-
-    // Actualizar badge de favoritas al iniciar y cuando cambien
-    updateFavBadge();
-}
-
-function updateFavBadge() {
-    const badge = document.getElementById('bnav-fav-count');
-    if (!badge) return;
-    const count = getFavorites().length;
-    if (count > 0) {
-        badge.textContent = count > 9 ? '9+' : String(count);
-        badge.classList.remove('hidden');
-    } else {
-        badge.classList.add('hidden');
-    }
-}
-
 
 function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
     const sheet = document.getElementById(sheetId);
@@ -936,14 +856,18 @@ function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
     let intentLocked = false;
     let isSheetDrag = false;
 
+    const getCloseThreshold = () => Math.max(100, window.innerHeight - visibleHeight);
+
     const getTranslateY = (el) => {
         try {
             const st = window.getComputedStyle(el);
             const tr = st.transform || st.webkitTransform;
-            if (!tr || tr === 'none') return 0;
-            if (window.DOMMatrix) { return new DOMMatrix(tr).m42 || 0; }
-            if (window.WebKitCSSMatrix) { return new WebKitCSSMatrix(tr).m42 || 0; }
-        } catch (e) { console.warn('Matrix error:', e); }
+            if (!tr || tr === 'none') {
+                return el.classList.contains('expanded') ? 0 : getCloseThreshold();
+            }
+            if (window.DOMMatrix) return new DOMMatrix(tr).m42 || 0;
+            if (window.WebKitCSSMatrix) return new WebKitCSSMatrix(tr).m42 || 0;
+        } catch (e) { console.warn(e); }
         return 0;
     };
 
@@ -951,7 +875,8 @@ function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
     const dragTargets = [
         handle, 
         sheet.querySelector('.top-controls'), 
-        sheet.querySelector('.station-header-row')
+        sheet.querySelector('.station-header-row'),
+        sheet.querySelector('.kpi-row')
     ].filter(Boolean);
 
     dragTargets.forEach(target => {
@@ -970,6 +895,23 @@ function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
         }, { passive: true });
     });
 
+    // Permitir también arrastrar hacia abajo desde el cuerpo del contenido si está arriba del todo
+    const scrollContent = sheet.querySelector('.station-list-container, .card-content');
+    if (scrollContent) {
+        scrollContent.addEventListener('touchstart', e => {
+            if (scrollContent.scrollTop <= 0) {
+                if (e.target.closest('button, input, a, select, canvas')) return;
+                isDragging = true;
+                intentLocked = false;
+                isSheetDrag = false;
+                startY = e.touches[0].clientY;
+                startX = e.touches[0].clientX;
+                startTime = Date.now();
+                initialY = getTranslateY(sheet);
+            }
+        }, { passive: true });
+    }
+
     // Eventos globales en el sheet para touchmove
     sheet.addEventListener('touchmove', e => {
         if (!isDragging) return;
@@ -987,14 +929,14 @@ function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
 
         if (!isSheetDrag) return;
 
-        // Si el contenido interno tiene scroll hacia abajo, permitir scroll natural
-        const scrollable = sheet.querySelector('.station-list-container, .card-content');
-        if (scrollable && scrollable.scrollTop > 0 && dy < 0) {
+        // Si el contenido interno tiene scroll hacia abajo y el usuario desliza hacia arriba, permitir scroll natural
+        if (scrollContent && scrollContent.scrollTop > 0 && dy < 0) {
             return;
         }
 
         if (e.cancelable) e.preventDefault();
         
+        sheet.style.transition = 'none';
         const newY = Math.max(0, initialY + dy);
         sheet.style.transform = `translateY(${newY}px)`;
     }, { passive: false });
@@ -1012,19 +954,23 @@ function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
         const dy = e.changedTouches && e.changedTouches[0] ? (e.changedTouches[0].clientY - startY) : 0;
         const velocity = dy / Math.max(1, dt); // px/ms
 
-        const closeThreshold = window.innerHeight - visibleHeight;
+        const closeThreshold = getCloseThreshold();
 
-        // Si fue un flick rápido hacia abajo (velocidad > 0.6) o superó el 40% del recorrido
-        if (velocity > 0.5 || currentY > closeThreshold * 0.45) {
+        // Si se arrastra hacia abajo (dy > 0 y supera umbral o velocidad)
+        if (dy > 30 || velocity > 0.4 || currentY > closeThreshold * 0.4) {
             // Colapsar a modo peek o cerrar si es station-card arrastrada muy abajo
-            if (sheetId === 'station-card' && currentY > closeThreshold * 0.85) {
+            if (sheetId === 'station-card' && (currentY > closeThreshold + 50 || dy > 180)) {
                 clearUI(true);
             } else {
                 sheet.style.transform = `translateY(${closeThreshold}px)`;
+                sheet.classList.remove('expanded');
+                sheet.classList.add('minimized');
             }
         } else {
             // Expandir a pantalla completa
             sheet.style.transform = 'translateY(0)';
+            sheet.classList.add('expanded');
+            sheet.classList.remove('minimized');
         }
     };
 

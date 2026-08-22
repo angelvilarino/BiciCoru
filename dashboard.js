@@ -904,13 +904,31 @@ class AdvancedDashboard {
 
     // ====== ATTACH EVENTS ======
     attachDashboardEvents(container, stats) {
-        // Pestañas
+        // Pestañas (con preservación del scroll horizontal en móvil)
         container.querySelectorAll('.dash-tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const tab = btn.dataset.tab;
                 if (tab && this.activeTab !== tab) {
                     this.activeTab = tab;
-                    this.renderDashboard(container.id, this.currentStations);
+
+                    // 1. Actualizar clases activas en los botones sin destruir el nav
+                    container.querySelectorAll('.dash-tab-btn').forEach(b => {
+                        const isSelected = b.dataset.tab === tab;
+                        b.classList.toggle('active', isSelected);
+                        b.setAttribute('aria-selected', String(isSelected));
+                    });
+
+                    // 2. Mantener la pestaña activa visible y centrada en la barra de scroll
+                    try {
+                        btn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                    } catch (err) {}
+
+                    // 3. Re-renderizar exclusivamente el cuerpo del tab
+                    const tabBody = container.querySelector('#dash-tab-body');
+                    if (tabBody) {
+                        tabBody.innerHTML = this.renderActiveTabContent(stats);
+                        this.attachDashboardEvents(container, stats);
+                    }
                 }
             });
         });
