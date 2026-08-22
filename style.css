@@ -1466,23 +1466,63 @@ body.dark-mode .close-btn {
         top: 12px;
         right: 12px;
         width: auto;
-        padding: 8px 14px;
+        max-width: calc(100vw - 24px);
+        padding: 6px 12px;
         flex-direction: row;
         align-items: center;
+        gap: 8px;
+        border-radius: var(--radius-md, 12px);
+        background: var(--bg-card);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        z-index: 1005;
     }
     
     .weather-main {
         border-bottom: none;
         padding-bottom: 0;
-        padding-right: 10px;
+        padding-right: 8px;
         border-right: 1px solid var(--border-color);
-        margin-right: 10px;
-        gap: 8px;
+        margin-right: 0;
+        gap: 6px;
     }
-    .w-temp { font-size: 1.2rem; }
-    .w-icon { font-size: 1.4rem; }
-    .weather-grid { display: flex; gap: 10px; }
-    .w-item span { display: none; }
+    .w-temp { 
+        font-size: 1.1rem; 
+        font-weight: 800;
+        letter-spacing: -0.5px;
+    }
+    .w-icon { 
+        font-size: 1.2rem; 
+    }
+    
+    .weather-grid { 
+        display: grid;
+        grid-template-columns: repeat(3, auto);
+        gap: 8px;
+        align-items: center;
+    }
+    
+    .w-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1px;
+    }
+    
+    .w-item i {
+        font-size: 0.82rem;
+        margin-bottom: 0;
+    }
+    
+    .w-item span { 
+        display: block !important;
+        font-size: 0.65rem;
+        font-weight: 700;
+        font-family: var(--op-font-mono);
+        color: var(--text-sub);
+        white-space: nowrap;
+    }
 
     .bottom-sheet {
         position: fixed !important;
@@ -1501,11 +1541,19 @@ body.dark-mode .close-btn {
         display: flex;
         flex-direction: column;
         transform: translateY(calc(100% - 140px));
-        transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+        touch-action: pan-y;
+        overscroll-behavior-y: contain;
+        -webkit-overflow-scrolling: touch;
     }
     
-    .sidebar-wrapper { padding: 0 !important; }
-    .sidebar-wrapper.minimized { transform: translateY(92%) !important; }
+    .sidebar-wrapper { 
+        padding: 0 !important;
+        touch-action: pan-y;
+    }
+    .sidebar-wrapper.minimized { 
+        transform: translateY(calc(100% - 70px)) !important; 
+    }
     
     .station-card {
         z-index: 2100 !important;
@@ -1513,6 +1561,8 @@ body.dark-mode .close-btn {
         padding: 0 !important;
         border-radius: 24px 24px 0 0 !important;
         max-height: 85vh !important;
+        touch-action: pan-y;
+        overscroll-behavior-y: contain;
     }
     .station-card:not(.hidden) {
         transform: translateY(0) !important;
@@ -1538,6 +1588,10 @@ body.dark-mode .close-btn {
     .station-list-container, .card-content {
         flex: 1;
         overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-y: contain;
+        touch-action: pan-y;
+    }
         -webkit-overflow-scrolling: touch;
         padding-bottom: 50px !important;
         touch-action: pan-y;
@@ -1849,28 +1903,32 @@ body.dark-mode .progress-bar { background: rgba(255, 255, 255, 0.1); }
         grid-template-columns: repeat(4, 1fr);
         align-items: stretch;
         position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
+        bottom: 12px;
+        left: 14px;
+        right: 14px;
         height: var(--bnav-height);
         background: var(--bg-card);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border-top: 1px solid var(--border-color);
-        box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.1);
-        z-index: 3000;
-        /* Soporte notch iPhone */
-        padding-bottom: env(safe-area-inset-bottom, 0px);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid var(--border-color);
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+        z-index: 2500;
+        padding-bottom: 0;
+        transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.25s ease;
     }
 
-    /* Elevar el bottom sheet para que no quede tapado por la nav */
-    .bottom-sheet {
-        padding-bottom: calc(var(--bnav-height) + env(safe-area-inset-bottom, 0px)) !important;
+    /* Auto-ocultamiento al abrir la tarjeta de estación */
+    .bottom-nav.nav-hidden,
+    body.station-active .bottom-nav {
+        transform: translateY(150%) !important;
+        opacity: 0;
+        pointer-events: none;
     }
 
     /* Elevar la leyenda del mapa */
     .map-legend {
-        bottom: calc(var(--bnav-height) + 16px) !important;
+        bottom: calc(var(--bnav-height) + 24px) !important;
     }
 }
 

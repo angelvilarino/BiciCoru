@@ -535,6 +535,10 @@ function updateMap() {
 }
 
 function loadStationDetails(station) {
+    // Coordinación de layout móvil: ocultar bottom nav para dar prioridad a la tarjeta de estación
+    document.body.classList.add('station-active');
+    document.getElementById('bottom-nav')?.classList.add('nav-hidden');
+
     // Minimizar panel lateral en móvil
     if(window.innerWidth <= 768) {
         document.getElementById('main-panel')?.classList.add('minimized');
@@ -542,7 +546,11 @@ function loadStationDetails(station) {
         document.getElementById('station-list-container')?.classList.add('hidden');
     }
     
-    document.getElementById('station-card')?.classList.remove('hidden');
+    const stationCard = document.getElementById('station-card');
+    if (stationCard) {
+        stationCard.classList.remove('hidden');
+        stationCard.style.transform = 'translateY(0)';
+    }
     currentStation = station;
 
     // Actualizar información básica
@@ -573,7 +581,7 @@ function loadStationDetails(station) {
     document.getElementById('trip-result')?.classList.add('hidden');
     
     // Volar a la estación
-    const padding = window.innerWidth > 768 ? [0, 0] : [0, 300];
+    const padding = window.innerWidth > 768 ? [0, 0] : [0, 260];
     map.flyTo([station.latitude, station.longitude], 16, {
         duration: 0.5, 
         paddingBottomRight: padding
@@ -609,7 +617,14 @@ function clearUI(closeCard = true) {
     currentRouteCoords = [];
     
     if(closeCard) {
-        document.getElementById('station-card')?.classList.add('hidden');
+        document.body.classList.remove('station-active');
+        document.getElementById('bottom-nav')?.classList.remove('nav-hidden');
+        
+        const card = document.getElementById('station-card');
+        if (card) {
+            card.classList.add('hidden');
+            card.style.transform = '';
+        }
         document.getElementById('main-panel')?.classList.remove('minimized');
         document.getElementById('station-list-container')?.classList.remove('hidden');
         currentStation = null;
@@ -907,12 +922,19 @@ function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
 
     if (!sheet || !handle) return;
 
+    // 1. Aislar de Leaflet para evitar que el mapa intercepte toques y clics
+    if (typeof L !== 'undefined' && L.DomEvent) {
+        L.DomEvent.disableClickPropagation(sheet);
+        L.DomEvent.disableScrollPropagation(sheet);
+    }
+
     let startY = 0;
     let startX = 0;
     let initialY = 0;
+    let startTime = 0;
     let isDragging = false;
-    let intentLocked = false;   // true = se determinó la dirección del gesto
-    let isSheetDrag = false;    // true = el gesto es para mover el sheet (no scroll interno)
+    let intentLocked = false;
+    let isSheetDrag = false;
 
     const getTranslateY = (el) => {
         try {
@@ -925,42 +947,60 @@ function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
         return 0;
     };
 
-    // ── touchstart: solo en el handle, siempre pasivo (no bloquea nada)
-    handle.addEventListener('touchstart', e => {
-        isDragging = true;
-        intentLocked = false;
-        isSheetDrag = false;
-        startY = e.touches[0].clientY;
-        startX = e.touches[0].clientX;
-        initialY = getTranslateY(sheet);
-        sheet.style.transition = 'none';
-    }, { passive: true });
+    // Áreas que inician el gesto de arrastre (Handle + cabeceras de tarjeta)
+    const dragTargets = [
+        handle, 
+        sheet.querySelector('.top-controls'), 
+        sheet.querySelector('.station-header-row')
+    ].filter(Boolean);
 
-    // ── touchmove: solo en el handle, determina intención antes de preventDefault
-    handle.addEventListener('touchmove', e => {
+    dragTargets.forEach(target => {
+        target.addEventListener('touchstart', e => {
+            // No iniciar arrastre si se pulsa un botón, input o enlace interactivo
+            if (e.target.closest('button, input, a, select, canvas')) return;
+
+            isDragging = true;
+            intentLocked = false;
+            isSheetDrag = false;
+            startY = e.touches[0].clientY;
+            startX = e.touches[0].clientX;
+            startTime = Date.now();
+            initialY = getTranslateY(sheet);
+            sheet.style.transition = 'none';
+        }, { passive: true });
+    });
+
+    // Eventos globales en el sheet para touchmove
+    sheet.addEventListener('touchmove', e => {
         if (!isDragging) return;
 
-        const dy = e.touches[0].clientY - startY;
-        const dx = e.touches[0].clientX - startX;
+        const currentTouchY = e.touches[0].clientY;
+        const currentTouchX = e.touches[0].clientX;
+        const dy = currentTouchY - startY;
+        const dx = currentTouchX - startX;
 
-        // Determinar la intención solo una vez por gesto
         if (!intentLocked && (Math.abs(dy) > 4 || Math.abs(dx) > 4)) {
-            isSheetDrag = Math.abs(dy) > Math.abs(dx); // vertical → mover sheet
+            // Es arrastre vertical si dy > dx
+            isSheetDrag = Math.abs(dy) > Math.abs(dx);
             intentLocked = true;
         }
 
-        if (!isSheetDrag) return; // gesto horizontal → dejar pasar sin preventDefault
+        if (!isSheetDrag) return;
 
-        // Movimiento vertical → mover el sheet
-        if (e.cancelable) e.preventDefault();
-        const newY = initialY + dy;
-        if (newY >= 0) {
-            sheet.style.transform = `translateY(${newY}px)`;
+        // Si el contenido interno tiene scroll hacia abajo, permitir scroll natural
+        const scrollable = sheet.querySelector('.station-list-container, .card-content');
+        if (scrollable && scrollable.scrollTop > 0 && dy < 0) {
+            return;
         }
-    }, { passive: false }); // passive:false necesario solo aquí para poder llamar preventDefault
 
-    // ── touchend: snap a posición abierta o cerrada
-    handle.addEventListener('touchend', () => {
+        if (e.cancelable) e.preventDefault();
+        
+        const newY = Math.max(0, initialY + dy);
+        sheet.style.transform = `translateY(${newY}px)`;
+    }, { passive: false });
+
+    // Touchend con cálculo de inercia/velocidad y snap
+    const endDrag = (e) => {
         if (!isDragging) return;
         isDragging = false;
         intentLocked = false;
@@ -968,18 +1008,32 @@ function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
         sheet.style.transition = 'transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1)';
 
         const currentY = getTranslateY(sheet);
+        const dt = Date.now() - startTime;
+        const dy = e.changedTouches && e.changedTouches[0] ? (e.changedTouches[0].clientY - startY) : 0;
+        const velocity = dy / Math.max(1, dt); // px/ms
+
         const closeThreshold = window.innerHeight - visibleHeight;
 
-        // Snap: si está en la mitad superior → abrir, si está en inferior → cerrar (peek)
-        sheet.style.transform = `translateY(${currentY < closeThreshold / 2 ? 0 : closeThreshold}px)`;
-    });
+        // Si fue un flick rápido hacia abajo (velocidad > 0.6) o superó el 40% del recorrido
+        if (velocity > 0.5 || currentY > closeThreshold * 0.45) {
+            // Colapsar a modo peek o cerrar si es station-card arrastrada muy abajo
+            if (sheetId === 'station-card' && currentY > closeThreshold * 0.85) {
+                clearUI(true);
+            } else {
+                sheet.style.transform = `translateY(${closeThreshold}px)`;
+            }
+        } else {
+            // Expandir a pantalla completa
+            sheet.style.transform = 'translateY(0)';
+        }
+    };
 
-    // ── touchcancel: limpiar estado sin animar
-    handle.addEventListener('touchcancel', () => {
+    sheet.addEventListener('touchend', endDrag, { passive: true });
+    sheet.addEventListener('touchcancel', () => {
         isDragging = false;
         intentLocked = false;
-        sheet.style.transition = 'transform 0.2s ease';
-    });
+        sheet.style.transition = 'transform 0.25s ease';
+    }, { passive: true });
 }
 
 // GRÁFICAS REALES (con lazy loading)
