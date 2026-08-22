@@ -64,7 +64,7 @@ La plataforma evoluciona los tradicionales mapas estáticos de bicicletas convir
   1. *Fecha & Hora*: Formato contextual (`Hoy, 10:57`, `Ayer, 18:30`, `22 Ago, 09:14`).
   2. *Ruta*: Origen y Destino limpios unidos por flecha discreta (`➔`).
   3. *Duración / Distancia*: Píldora consolidada (`13 min • 2.7 km`).
-  4. *Precisión IA*: Indicador visual con porcentaje de acierto (`● 100%`, `● 95%`, `● 92%`).
+  4. *Precisión Predicción IA*: Indicador visual con porcentaje de acierto (`● 100%`, `● 95%`, `● 92%`).
 - **Filtrado Rápido**: Búsqueda por texto y chips de precisión (`Todos`, `Exacta`, `Desv. Mínima`).
 
 ### 3.6. Clima y Estado Marítimo

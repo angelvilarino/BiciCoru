@@ -833,12 +833,6 @@ class AdvancedDashboard {
                         <input type="text" id="dash-trip-search-input" placeholder="Buscar por estación..." value="${this.tripSearch}">
                         ${this.tripSearch ? `<button id="btn-clear-trip-search" class="clear-btn">✕</button>` : ''}
                     </div>
-
-                    <div class="dash-filter-chips">
-                        <button class="dash-chip dash-trip-chip ${this.tripFilter === 'all' ? 'active' : ''}" data-filter="all">Todos (${performance.totalTrips})</button>
-                        <button class="dash-chip dash-trip-chip ${this.tripFilter === 'high' ? 'active' : ''}" data-filter="high">Alta Precisión (≥90%)</button>
-                        <button class="dash-chip dash-trip-chip ${this.tripFilter === 'dev' ? 'active' : ''}" data-filter="dev">Con Variación (&lt;90%)</button>
-                    </div>
                 </div>
 
                 <div class="dash-trips-table-wrapper minimal-table-wrapper">
@@ -848,7 +842,7 @@ class AdvancedDashboard {
                                 <th>Fecha & Hora</th>
                                 <th>Ruta</th>
                                 <th>Duración / Distancia</th>
-                                <th>Precisión IA</th>
+                                <th>Precisión Predicción IA</th>
                             </tr>
                         </thead>
                         <tbody>
