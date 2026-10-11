@@ -16,7 +16,7 @@
     <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
     <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css" />
     
-    <link rel="stylesheet" href="style.css?v=27.0">
+    <link rel="stylesheet" href="style.css?v=29.0">
     <link rel="stylesheet" href="features-styles.css?v=26.0">
 </head>
 <body>
@@ -107,6 +107,11 @@
                 <div class="search-floating" role="search">
                     <label for="search-input" class="sr-only">Buscar estaciones</label>
                     <input type="search" id="search-input" placeholder="Buscar por estación o calle..." autocomplete="off" aria-label="Buscar estaciones por nombre">
+                    <div class="map-view-switch" role="group" aria-label="Vista del mapa">
+                        <button type="button" data-map-view="light" aria-label="Vista clara" aria-pressed="true" title="Vista clara"><i class="ph-bold ph-sun" aria-hidden="true"></i></button>
+                        <button type="button" data-map-view="dark" aria-label="Vista oscura" aria-pressed="false" title="Vista oscura"><i class="ph-bold ph-moon" aria-hidden="true"></i></button>
+                        <button type="button" data-map-view="satellite" aria-label="Vista satélite" aria-pressed="false" title="Vista satélite"><i class="ph-bold ph-satellite" aria-hidden="true"></i></button>
+                    </div>
                     <button id="btn-geo" class="icon-btn" aria-label="Localizar mi posición" title="Mi ubicación"><i class="ph-bold ph-crosshair" aria-hidden="true"></i></button>
                 </div>
                 <div class="filters-scroll" role="tablist" aria-label="Filtros de estaciones">
@@ -207,7 +212,7 @@
     <!-- Error handler -->
     <script src="error-handler.js"></script>
     
-    <script src="logic.js?v=27.0"></script>
+    <script src="logic.js?v=29.0"></script>
     
     <!-- UI Integrations -->
     <script src="ui-integrations.js?v=26.0"></script>

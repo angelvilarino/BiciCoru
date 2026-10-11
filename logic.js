@@ -7,6 +7,7 @@ const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let map;
 let mapLayers = null;
 let activeMapLayer = null;
+let currentMapView = 'light';
 let markers = {};
 let stationsData = [];
 let historyChart = null;
@@ -214,13 +215,9 @@ function initMap() {
     window.map = map;
     
     mapLayers = {
-        light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-            maxZoom: 20
-        }),
-        dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-            maxZoom: 20
+        light: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
         }),
         satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: 'Tiles &copy; Esri',
@@ -228,15 +225,10 @@ function initMap() {
         })
     };
 
-    const initialLayer = localStorage.getItem('darkMode') === 'true' ? mapLayers.dark : mapLayers.light;
-    activeMapLayer = initialLayer.addTo(map);
-    L.control.layers({
-        'Claro': mapLayers.light,
-        'Oscuro': mapLayers.dark,
-        'Satélite': mapLayers.satellite
-    }, null, { collapsed: true, position: 'topright' }).addTo(map);
-    map.on('baselayerchange', event => {
-        activeMapLayer = event.layer;
+    const initialView = localStorage.getItem('darkMode') === 'true' ? 'dark' : 'light';
+    setMapView(initialView);
+    document.querySelectorAll('[data-map-view]').forEach(button => {
+        button.addEventListener('click', () => setMapView(button.dataset.mapView));
     });
     
     map.on('click', () => clearUI(true));
@@ -854,13 +846,27 @@ function setupTheme() {
 }
 
 function syncMapTheme() {
-    if (!map || !activeMapLayer || !mapLayers || activeMapLayer === mapLayers.satellite) return;
+    if (currentMapView === 'satellite') return;
 
-    const nextLayer = document.body.classList.contains('dark-mode') ? mapLayers.dark : mapLayers.light;
-    if (activeMapLayer === nextLayer) return;
+    setMapView(document.body.classList.contains('dark-mode') ? 'dark' : 'light');
+}
 
-    map.removeLayer(activeMapLayer);
+function setMapView(view) {
+    if (!map || !mapLayers || !['light', 'dark', 'satellite'].includes(view)) return;
+
+    const nextLayer = view === 'satellite' ? mapLayers.satellite : mapLayers.light;
+    if (activeMapLayer !== nextLayer) {
+        if (activeMapLayer) map.removeLayer(activeMapLayer);
     activeMapLayer = nextLayer.addTo(map);
+}
+
+    currentMapView = view;
+    map.getContainer().classList.toggle('map-dark-tiles', view === 'dark');
+    document.querySelectorAll('[data-map-view]').forEach(button => {
+        const isActive = button.dataset.mapView === view;
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-pressed', String(isActive));
+    });
 }
 
 function setupSearch() {

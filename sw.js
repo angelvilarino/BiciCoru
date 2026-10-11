@@ -3,7 +3,7 @@
  * PWA con cache-first strategy
  */
 
-const CACHE_VERSION = 'pedalia-v1.1';
+const CACHE_VERSION = 'pedalia-v1.3';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DATA_CACHE = `${CACHE_VERSION}-data`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
