@@ -5,6 +5,8 @@ const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // VARIABLES GLOBALES
 let map;
+let mapLayers = null;
+let activeMapLayer = null;
 let markers = {};
 let stationsData = [];
 let historyChart = null;
@@ -181,15 +183,7 @@ function submitReport() {
         return; 
     }
     
-    // Aquí iría la lógica para enviar a Supabase
-    console.log('Report:', {
-        station: currentStation?.station_id,
-        type: selectedReportType,
-        description: text
-    });
-    
-    showToast("✅ Reporte enviado"); 
-    closeReportModal();
+    showToast('El envío de incidencias no está disponible todavía');
 }
 
 // INICIALIZACIÓN
@@ -219,10 +213,31 @@ function initMap() {
     map = L.map('map', { zoomControl: false }).setView([43.366, -8.410], 13);
     window.map = map;
     
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { 
-        attribution: '© CARTO', 
+    mapLayers = {
+        light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            maxZoom: 20
+        }),
+        dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            maxZoom: 20
+        }),
+        satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri',
         maxZoom: 19 
-    }).addTo(map);
+        })
+    };
+
+    const initialLayer = localStorage.getItem('darkMode') === 'true' ? mapLayers.dark : mapLayers.light;
+    activeMapLayer = initialLayer.addTo(map);
+    L.control.layers({
+        'Claro': mapLayers.light,
+        'Oscuro': mapLayers.dark,
+        'Satélite': mapLayers.satellite
+    }, null, { collapsed: true, position: 'topright' }).addTo(map);
+    map.on('baselayerchange', event => {
+        activeMapLayer = event.layer;
+    });
     
     map.on('click', () => clearUI(true));
     
@@ -829,11 +844,23 @@ function setupTheme() {
     document.getElementById('btn-dark-mode')?.addEventListener('click', () => {
         document.body.classList.toggle('dark-mode');
         localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+        syncMapTheme();
     });
     
     if(localStorage.getItem('darkMode') === 'true') {
         document.body.classList.add('dark-mode');
     }
+    syncMapTheme();
+}
+
+function syncMapTheme() {
+    if (!map || !activeMapLayer || !mapLayers || activeMapLayer === mapLayers.satellite) return;
+
+    const nextLayer = document.body.classList.contains('dark-mode') ? mapLayers.dark : mapLayers.light;
+    if (activeMapLayer === nextLayer) return;
+
+    map.removeLayer(activeMapLayer);
+    activeMapLayer = nextLayer.addTo(map);
 }
 
 function setupSearch() {

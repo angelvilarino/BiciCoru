@@ -174,8 +174,8 @@ body {
     transition: filter 0.4s ease;
 }
 
-body.dark-mode #map {
-    filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(92%);
+.leaflet-top.leaflet-right .leaflet-control-layers {
+    margin-top: 140px;
 }
 
 .leaflet-routing-container { display: none !important; }
