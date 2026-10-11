@@ -215,12 +215,17 @@ function initMap() {
     window.map = map;
     
     mapLayers = {
-        light: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            maxZoom: 19
+        light: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri',
+            maxZoom: 19,
+            maxNativeZoom: 23
+        }),
+        dark: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri',
+            maxZoom: 19,
+            maxNativeZoom: 23
         }),
         satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles &copy; Esri',
         maxZoom: 19 
         })
     };
@@ -228,7 +233,12 @@ function initMap() {
     const initialView = localStorage.getItem('darkMode') === 'true' ? 'dark' : 'light';
     setMapView(initialView);
     document.querySelectorAll('[data-map-view]').forEach(button => {
-        button.addEventListener('click', () => setMapView(button.dataset.mapView));
+        button.addEventListener('click', () => {
+            const nextView = currentMapView === 'satellite'
+                ? (document.body.classList.contains('dark-mode') ? 'dark' : 'light')
+                : 'satellite';
+            setMapView(nextView);
+        });
     });
     
     map.on('click', () => clearUI(true));
@@ -854,18 +864,17 @@ function syncMapTheme() {
 function setMapView(view) {
     if (!map || !mapLayers || !['light', 'dark', 'satellite'].includes(view)) return;
 
-    const nextLayer = view === 'satellite' ? mapLayers.satellite : mapLayers.light;
+    const nextLayer = mapLayers[view];
     if (activeMapLayer !== nextLayer) {
         if (activeMapLayer) map.removeLayer(activeMapLayer);
     activeMapLayer = nextLayer.addTo(map);
 }
 
     currentMapView = view;
-    map.getContainer().classList.toggle('map-dark-tiles', view === 'dark');
     document.querySelectorAll('[data-map-view]').forEach(button => {
-        const isActive = button.dataset.mapView === view;
-        button.classList.toggle('active', isActive);
-        button.setAttribute('aria-pressed', String(isActive));
+        const isSatellite = view === 'satellite';
+        button.classList.toggle('active', isSatellite);
+        button.setAttribute('aria-pressed', String(isSatellite));
     });
 }
 

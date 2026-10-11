@@ -173,10 +173,6 @@ body {
     z-index: 1;
 }
 
-#map.map-dark-tiles .leaflet-tile-pane {
-    filter: invert(1) hue-rotate(180deg) brightness(0.88) contrast(0.9);
-}
-
 .leaflet-routing-container { display: none !important; }
 
 /* Skip links para accesibilidad */
@@ -502,42 +498,9 @@ body.dark-mode .dashboard-hero-btn i {
     transition: all 0.2s ease;
 }
 
-.map-view-switch {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    height: 46px;
-    padding: 3px;
-    flex-shrink: 0;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow);
-}
-
-.map-view-switch button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 34px;
-    height: 38px;
-    padding: 0;
-    border: 0;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-main);
-    font-size: 1.1rem;
-    cursor: pointer;
-}
-
-.map-view-switch button.active {
+#btn-satellite.active {
     background: var(--accent-color);
     color: #fff;
-}
-
-.map-view-switch button:focus-visible {
-    outline: 2px solid var(--accent-color);
-    outline-offset: 1px;
 }
 
 #search-input:focus {
