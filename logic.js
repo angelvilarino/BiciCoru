@@ -314,8 +314,8 @@ function setupUI() {
 
         // Setup draggable sheets para móvil
         if(window.innerWidth <= 768) {
-            setupDraggableSheet('main-panel', 'main-drag-zone', 140);
-            setupDraggableSheet('station-card', 'card-drag-zone', 160);
+            setupDraggableSheet('main-panel', 'main-drag-zone');
+            setupDraggableSheet('station-card', 'card-drag-zone');
         }
     } catch(e) { 
         console.error("UI Setup Error:", e); 
@@ -557,15 +557,24 @@ function loadStationDetails(station) {
 
     // Minimizar panel lateral en móvil
     if(window.innerWidth <= 768) {
-        document.getElementById('main-panel')?.classList.add('minimized');
+        const mainPanel = document.getElementById('main-panel');
+        if (mainPanel) {
+            mainPanel.style.transform = '';
+            mainPanel.style.transition = '';
+            mainPanel.classList.remove('expanded');
+            mainPanel.classList.add('minimized');
+        }
     } else {
         document.getElementById('station-list-container')?.classList.add('hidden');
     }
     
     const stationCard = document.getElementById('station-card');
     if (stationCard) {
+        stationCard.style.transform = '';
+        stationCard.style.transition = '';
         stationCard.classList.remove('hidden');
-        stationCard.style.transform = 'translateY(0)';
+        stationCard.classList.remove('minimized');
+        stationCard.classList.add('expanded');
     }
     currentStation = station;
 
@@ -640,8 +649,15 @@ function clearUI(closeCard = true) {
         if (card) {
             card.classList.add('hidden');
             card.style.transform = '';
+            card.style.transition = '';
+            card.classList.remove('minimized', 'expanded');
         }
-        document.getElementById('main-panel')?.classList.remove('minimized');
+        const mainPanel = document.getElementById('main-panel');
+        if (mainPanel) {
+            mainPanel.style.transform = '';
+            mainPanel.style.transition = '';
+            mainPanel.classList.remove('minimized', 'expanded');
+        }
         document.getElementById('station-list-container')?.classList.remove('hidden');
         currentStation = null;
     }
@@ -672,12 +688,14 @@ function drawRoute(dest, mode = 'walk') {
         const stationCard = document.getElementById('station-card');
         if(stationCard) {
             stationCard.classList.add('minimized');
-            stationCard.style.transform = 'translateY(calc(100% - 60px))';
+            stationCard.classList.remove('expanded');
+            stationCard.style.transform = '';
         }
         const mainPanel = document.getElementById('main-panel');
         if(mainPanel) {
             mainPanel.classList.add('minimized');
-            mainPanel.style.transform = 'translateY(calc(100% - 60px))';
+            mainPanel.classList.remove('expanded');
+            mainPanel.style.transform = '';
         }
     }
 
@@ -898,7 +916,7 @@ function forceLocate() {
     }
 }
 
-function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
+function setupDraggableSheet(sheetId, dragZoneId) {
     const sheet = document.getElementById(sheetId);
     const handle = document.getElementById(dragZoneId);
 
@@ -918,7 +936,7 @@ function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
     let intentLocked = false;
     let isSheetDrag = false;
 
-    const getCloseThreshold = () => Math.max(100, window.innerHeight - visibleHeight);
+    const getCloseThreshold = () => Math.max(0, sheet.offsetHeight - 70);
 
     const getTranslateY = (el) => {
         try {
@@ -1018,8 +1036,11 @@ function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
 
         const closeThreshold = getCloseThreshold();
 
-        // Si se arrastra hacia abajo (dy > 0 y supera umbral o velocidad)
-        if (dy > 30 || velocity > 0.4 || currentY > closeThreshold * 0.4) {
+        const isUpwardSwipe = dy < -30 || velocity < -0.4;
+        const isDownwardSwipe = dy > 30 || velocity > 0.4;
+        const shouldCollapse = isDownwardSwipe || (!isUpwardSwipe && currentY > closeThreshold / 2);
+
+        if (shouldCollapse) {
             // Colapsar a modo peek o cerrar si es station-card arrastrada muy abajo
             if (sheetId === 'station-card' && (currentY > closeThreshold + 50 || dy > 180)) {
                 clearUI(true);
@@ -1038,9 +1059,14 @@ function setupDraggableSheet(sheetId, dragZoneId, visibleHeight) {
 
     sheet.addEventListener('touchend', endDrag, { passive: true });
     sheet.addEventListener('touchcancel', () => {
+        const shouldCollapse = getTranslateY(sheet) > getCloseThreshold() / 2;
         isDragging = false;
         intentLocked = false;
+        isSheetDrag = false;
         sheet.style.transition = 'transform 0.25s ease';
+        sheet.style.transform = `translateY(${shouldCollapse ? getCloseThreshold() : 0}px)`;
+        sheet.classList.toggle('minimized', shouldCollapse);
+        sheet.classList.toggle('expanded', !shouldCollapse);
     }, { passive: true });
 }
 
