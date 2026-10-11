@@ -3,7 +3,7 @@
  * PWA con cache-first strategy
  */
 
-const CACHE_VERSION = 'pedalia-v1.0';
+const CACHE_VERSION = 'pedalia-v1.1';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DATA_CACHE = `${CACHE_VERSION}-data`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
@@ -64,7 +64,7 @@ self.addEventListener('activate', event => {
             caches.keys().then(cacheNames => {
                 return Promise.all(
                     cacheNames
-                        .filter(name => name.startsWith('bicoruna-') && name !== STATIC_CACHE && name !== DATA_CACHE && name !== IMAGE_CACHE)
+                        .filter(name => name.startsWith('pedalia-') && name !== STATIC_CACHE && name !== DATA_CACHE && name !== IMAGE_CACHE)
                         .map(name => {
                             console.log('[SW] Eliminando cache antigua:', name);
                             return caches.delete(name);
