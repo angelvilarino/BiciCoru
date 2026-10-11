@@ -39,6 +39,13 @@ MODEL_PARAMS = {
     'random_state': 42
 }
 
+MODEL_FEATURES = [
+    'total_capacity', 'hour_sin', 'hour_cos', 'day_sin', 'day_cos',
+    'is_weekend', 'is_holiday', 'temperature', 'rain_1h', 'wind_speed',
+    'lag_1h', 'lag_2h', 'lag_3h', 'lag_24h', 'rolling_3h', 'slope',
+    'lag_1h_ratio'
+]
+
 def fetch_data():
     print("📥 Descargando historial...")
     try:
@@ -178,14 +185,7 @@ def train_station_model(station_id, station_df):
         if len(station_df) < 30: # Bajamos el requisito mínimo
             return None
         
-        features = [
-            'total_capacity', 'hour_sin', 'hour_cos', 'day_sin', 'day_cos',
-            'is_weekend', 'is_holiday', 'temperature', 'rain_1h', 'wind_speed',
-            'lag_1h', 'lag_2h', 'lag_3h', 'lag_24h', 'rolling_3h', 'slope',
-            'lag_1h_ratio'
-        ]
-        
-        X = station_df[features]
+        X = station_df[MODEL_FEATURES]
         y = station_df['available_bikes']
         
         model = HistGradientBoostingRegressor(**MODEL_PARAMS)
@@ -216,12 +216,14 @@ def main():
     print("="*60 + "\n")
     
     df = fetch_data()
-    if df.empty: return print("❌ Sin datos.")
+    if df.empty:
+        raise RuntimeError("Sin datos de entrenamiento.")
     
     weather = fetch_weather()
     df_processed = create_features_vectorized(df, weather)
     
-    if df_processed.empty: return print("❌ Dataset vacío tras limpieza.")
+    if df_processed.empty:
+        raise RuntimeError("Dataset vacío tras limpieza.")
     
     print(f"📊 Entrenando con {len(df_processed)} filas recuperadas...")
     
@@ -243,7 +245,8 @@ def main():
             models[sid] = model
             station_info[sid] = info
             
-    if not models: return print("❌ ERROR FINAL: No se pudo entrenar ningún modelo válido.")
+    if not models:
+        raise RuntimeError("No se pudo entrenar ningún modelo válido.")
     
     # Guardar
     os.makedirs(MODEL_DIR, exist_ok=True)
@@ -253,12 +256,7 @@ def main():
     artifact = {
         'models': models,
         'station_info': station_info,
-        'features': [
-            'total_capacity', 'hour_sin', 'hour_cos', 'day_sin', 'day_cos',
-            'is_weekend', 'is_holiday', 'temperature', 'rain_1h', 'wind_speed',
-            'lag_1h', 'lag_2h', 'lag_3h', 'lag_24h', 'rolling_3h', 'slope',
-            'lag_1h_ratio'
-        ],
+        'features': MODEL_FEATURES,
         'version': 'v25_gap_recovery',
         'last_train': datetime.now().isoformat()
     }
@@ -267,13 +265,5 @@ def main():
     print(f"\n✅ ÉXITO: {len(models)} modelos generados.")
     print(f"   MAE Medio: {avg_mae:.2f}")
     print(f"   R² Medio:  {avg_r2:.3f}")
-    
-    try:
-        os.system('git add .')
-        os.system(f'git commit -m "auto-train v25 mae={avg_mae:.2f}"')
-        os.system('git push')
-    except:
-        pass
-
 if __name__ == "__main__":
     main()

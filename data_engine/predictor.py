@@ -57,7 +57,8 @@ def fetch_weather_forecast():
 def main():
     print("🔮 PREDICCIONES v25 (Gap Recovery)")
     model_path = os.path.join(MODEL_DIR, 'models.pkl')
-    if not os.path.exists(model_path): return print("❌ Sin modelo")
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"No se encontró el modelo entrenado: {model_path}")
     
     artifact = joblib.load(model_path)
     models = artifact['models']
@@ -65,7 +66,8 @@ def main():
     model_features = artifact['features']
     
     history = fetch_recent_history()
-    if history.empty: return print("❌ Sin historia")
+    if history.empty:
+        raise RuntimeError("No hay historial reciente para generar predicciones.")
     
     weather = fetch_weather_forecast()
     future_dates = [datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) + timedelta(hours=i) for i in range(1, 25)]
@@ -142,12 +144,14 @@ def main():
                 'predicted_bikes': int(pred)
             })
 
-    if all_preds:
-        sb = get_supabase()
-        batch = 1000
-        for i in range(0, len(all_preds), batch):
-            sb.table("predicciones").upsert(all_preds[i:i+batch], on_conflict='station_id,prediction_date').execute()
-        print(f"✅ {len(all_preds)} predicciones guardadas.")
+    if not all_preds:
+        raise RuntimeError("No se generaron predicciones para ninguna estación.")
+
+    sb = get_supabase()
+    batch = 1000
+    for i in range(0, len(all_preds), batch):
+        sb.table("predicciones").upsert(all_preds[i:i+batch], on_conflict='station_id,prediction_date').execute()
+    print(f"✅ {len(all_preds)} predicciones guardadas.")
 
 if __name__ == "__main__":
     main()

@@ -12,6 +12,7 @@ jobs:
     
     permissions:
       contents: read
+      actions: read
     
     steps:
       - uses: actions/checkout@v4
@@ -24,6 +25,43 @@ jobs:
       
       - name: Install dependencies
         run: pip install -r data_engine/requirements.txt
+
+      - name: Validate model pipeline
+        run: python -m unittest data_engine.test_prediction_pipeline -v
+
+      - name: Download latest trained model
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          if ! run_ids=$(gh run list --workflow train_model.yml --status success --limit 10 --json databaseId --jq '.[].databaseId'); then
+            run_ids=""
+          fi
+          downloaded=false
+
+          while IFS= read -r run_id; do
+            [ -n "$run_id" ] || continue
+            model_dir="$RUNNER_TEMP/trained-model-$run_id"
+            if gh run download "$run_id" --name trained-model --dir "$model_dir"; then
+              mkdir -p data_engine/models_v22
+              cp "$model_dir/models.pkl" data_engine/models_v22/models.pkl
+              downloaded=true
+              break
+            fi
+          done <<EOF
+          $run_ids
+          EOF
+
+          if [ "$downloaded" != true ]; then
+            echo "::notice::No trained-model artifact found; training a model in this run."
+            python data_engine/train_model.py
+          fi
+
+          if [ ! -s data_engine/models_v22/models.pkl ]; then
+            echo "::error::Training did not produce a usable model artifact."
+            exit 1
+          fi
       
       - name: Generate predictions
         env:

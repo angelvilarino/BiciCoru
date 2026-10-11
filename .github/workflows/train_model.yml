@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 20 # Bajado de 30 a 20 porque V11 es muy rápido
     
     permissions:
-      contents: write # IMPORTANTE: Permiso para hacer git push
+      contents: read
     
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +26,9 @@ jobs:
       
       - name: Install dependencies
         run: pip install -r data_engine/requirements.txt
+
+      - name: Validate model pipeline
+        run: python -m unittest data_engine.test_prediction_pipeline -v
       
       - name: Train model
         env:
@@ -33,18 +36,10 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python data_engine/train_model.py
       
-      - name: Commit updated model
-        run: |
-          git config user.name "GitHub Actions Bot"
-          git config user.email "actions@github.com"
-          
-          # Añadimos solo el archivo .pkl
-          git add data_engine/models_advanced.pkl
-          
-          # Si no hay cambios (el modelo es idéntico), no fallar
-          git commit -m "🤖 Modelo reentrenado automáticamente" || echo "No changes to commit"
-          
-          # TRUCO PRO: Traer cambios remotos antes de subir para evitar conflictos
-          git pull --rebase origin main
-          
-          git push
+      - name: Upload trained model
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-model
+          path: data_engine/models_v22/models.pkl
+          if-no-files-found: error
+          retention-days: 14
